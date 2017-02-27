@@ -7,52 +7,10 @@
 #include <DirectXMath.h>
 #include "OVR_CAPI_D3D.h"
 
-// TODO: remove this trash
-#define UNIFORM_DATA_SIZE 2000
-
-struct DepthBuffer
+enum RendererType
 {
-    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> TexDSV;
-
-    DepthBuffer(ID3D11Device* device, int width, int height, int sampleCount = 1)
-    {
-        DXGI_FORMAT format = DXGI_FORMAT_D32_FLOAT;
-        D3D11_TEXTURE2D_DESC dsDesc = {};
-        dsDesc.Width = width;
-        dsDesc.Height = height;
-        dsDesc.MipLevels = 1;
-        dsDesc.ArraySize = 1;
-        dsDesc.Format = format;
-        dsDesc.SampleDesc.Count = sampleCount;
-        dsDesc.SampleDesc.Quality = 0;
-        dsDesc.Usage = D3D11_USAGE_DEFAULT;
-        dsDesc.CPUAccessFlags = 0;
-        dsDesc.MiscFlags = 0;
-        dsDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-        Microsoft::WRL::ComPtr<ID3D11Texture2D> tex;
-        device->CreateTexture2D(&dsDesc, NULL, &tex);
-        device->CreateDepthStencilView(tex.Get(), NULL, &TexDSV);
-    }
-};
-
-struct DataBuffer
-{
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_d3dBuffer;
-    size_t m_size;
-
-    DataBuffer(ID3D11Device* device, D3D11_BIND_FLAG bindFlag, const void* buffer, size_t size)
-        : m_size(size)
-    {
-        D3D11_BUFFER_DESC desc = {};
-        desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        desc.BindFlags = bindFlag;
-        desc.ByteWidth = (unsigned)size;
-        D3D11_SUBRESOURCE_DATA sr = {};
-        sr.pSysMem = buffer;
-        sr.SysMemPitch = sr.SysMemSlicePitch = 0;
-        device->CreateBuffer(&desc, buffer ? &sr : NULL, &m_d3dBuffer);
-    }
+    Vitamin,
+    Oculus
 };
 
 struct OculusTexture
@@ -128,7 +86,7 @@ struct OculusTexture
 class Renderer
 {
 public:
-    Renderer();
+    Renderer(RendererType rendererType);
     ~Renderer();
     void Initialize(HWND window);
     void Render();
@@ -153,6 +111,12 @@ protected:
     void InitializeD3D(HWND window);
     void InitializeShaders();
 
+    void RenderVitamin();
+    void RenderOculus();
+    void RenderScene(DirectX::XMMATRIX* projView);
+
+    void CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView);
+
     int m_clientWidth;
     int m_clientHeight;
 
@@ -162,6 +126,7 @@ protected:
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_backBuffer;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_backBufferRT;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_constantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthBuffer;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizer;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthState;
 
@@ -174,11 +139,11 @@ protected:
     ovrGraphicsLuid m_gLuid;
     ovrMirrorTexture m_mirrorTexture;
 
-    DepthBuffer* m_depthBuffer;
-
     ovrRecti m_eyeRenderViewport[2];
-    DepthBuffer* m_eyeDepthBuffer[2];
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_eyeDepthBuffer[2];
     OculusTexture* m_eyeRenderTexture[2];
 
     long long m_frameIndex;
+
+    RendererType m_rendererType;
 };

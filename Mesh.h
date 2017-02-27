@@ -32,7 +32,7 @@ struct Vertex
 struct MeshData
 {
     std::vector<Vertex> Vertices;
-    std::vector<short> Indices;
+    std::vector<unsigned short> Indices;
 };
 
 namespace
@@ -44,14 +44,14 @@ namespace
         float z2 = 0.5f * depth;
 
         meshData.Vertices.assign({
-            Vertex(-x2, -y2, -z2, Colors::Green),
-            Vertex(-x2, +y2, -z2, Colors::Green),
+            Vertex(-x2, -y2, -z2, Colors::White),
+            Vertex(-x2, +y2, -z2, Colors::Red),
             Vertex(+x2, +y2, -z2, Colors::Green),
-            Vertex(+x2, -y2, -z2, Colors::Green),
-            Vertex(-x2, -y2, +z2, Colors::Green),
-            Vertex(-x2, +y2, +z2, Colors::Green),
-            Vertex(+x2, +y2, +z2, Colors::Green),
-            Vertex(+x2, -y2, +z2, Colors::Green) });
+            Vertex(+x2, -y2, -z2, Colors::Blue),
+            Vertex(-x2, -y2, +z2, Colors::Yellow),
+            Vertex(-x2, +y2, +z2, Colors::Cyan),
+            Vertex(+x2, +y2, +z2, Colors::Magenta),
+            Vertex(+x2, -y2, +z2, Colors::Silver) });
 
         meshData.Indices.assign({
             // front face

@@ -8,7 +8,7 @@
 using namespace Microsoft::WRL;
 using namespace DirectX;
 
-Renderer::Renderer() :
+Renderer::Renderer(RendererType rendererType) :
     m_clientWidth(0),
     m_clientHeight(0),
     m_d3dDevice(nullptr),
@@ -19,52 +19,69 @@ Renderer::Renderer() :
     m_eyeRenderViewport{},
     m_eyeDepthBuffer{},
     m_eyeRenderTexture{},
-    m_frameIndex(0)
+    m_frameIndex(0),
+    m_rendererType(rendererType)
 {
 }
 
 Renderer::~Renderer()
 {
-    delete m_depthBuffer;
-    m_depthBuffer = nullptr;
+    for (int eye = 0; eye < 2; eye++)
+    {
+        delete m_eyeRenderTexture[eye];
+    }
+
+    if (RendererType::Oculus == m_rendererType)
+    {
+        ovr_Destroy(m_ovrSession);
+    }
 }
 
 void Renderer::Initialize(HWND window)
 {
-    InitializeOVR();
+    if (RendererType::Oculus == m_rendererType)
+    {
+        InitializeOVR();
+    }
+
     InitializeD3D(window);
     InitializeShaders();
-
-    for (int eye = 0; eye < 2; eye++)
-    {
-        ovrSizei idealSize = ovr_GetFovTextureSize(m_ovrSession, (ovrEyeType)eye, m_hmdDesc.DefaultEyeFov[eye], 1.0f);
-        m_eyeRenderTexture[eye] = new OculusTexture();
-        m_eyeRenderTexture[eye]->Init(m_ovrSession, m_d3dDevice.Get(), idealSize.w, idealSize.h);
-        m_eyeDepthBuffer[eye] = new DepthBuffer(m_d3dDevice.Get(), idealSize.w, idealSize.h);
-        m_eyeRenderViewport[eye].Pos.x = 0;
-        m_eyeRenderViewport[eye].Pos.y = 0;
-        m_eyeRenderViewport[eye].Size = idealSize;
-        if (!m_eyeRenderTexture[eye]->m_textureSwapChain)
-        {
-            throw std::runtime_error("Create texture failed.");
-        }
-    }
-
-    // Create a mirror to see on the monitor.
-    ovrMirrorTextureDesc mirrorDesc = {};
-    mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
-    mirrorDesc.Width = m_clientWidth;
-    mirrorDesc.Height = m_clientHeight;
-    if (OVR_FAILURE(ovr_CreateMirrorTextureDX(m_ovrSession, m_d3dDevice.Get(), &mirrorDesc, &m_mirrorTexture)))
-    {
-        throw std::runtime_error("Create mirror texture failed.");
-    }
-
-    // FloorLevel will give tracking poses where the floor height is 0
-    ovr_SetTrackingOriginType(m_ovrSession, ovrTrackingOrigin_FloorLevel);
 }
 
 void Renderer::Render()
+{
+    switch (m_rendererType)
+    {
+    case RendererType::Vitamin:
+        RenderVitamin();
+        break;
+    case RendererType::Oculus:
+        RenderOculus();
+        break;
+    }
+}
+
+void Renderer::RenderVitamin()
+{
+    // Build the view matrix.
+    XMVECTOR pos = XMVectorSet(0.0f, 0.f, 10.f, 1.0f);
+    XMVECTOR target = XMVectorZero();
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    XMMATRIX V = XMMatrixLookAtRH(pos, target, up);
+    XMMATRIX P = XMMatrixPerspectiveFovRH(XM_PI / 4, static_cast<float>(m_clientWidth) / m_clientHeight, .2f, 1000.0f);
+    XMMATRIX prod = XMMatrixMultiply(V, P);
+
+    float white[] = { 1.f, 1.f, 1.f, 1.f };
+    m_d3dDeviceContext->ClearRenderTargetView(m_backBufferRT.Get(), white);
+    m_d3dDeviceContext->ClearDepthStencilView(m_depthBuffer.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
+
+    RenderScene(&prod);
+    
+    m_swapChain->Present(0, 0);
+}
+
+void Renderer::RenderOculus()
 {
     ovrSessionStatus sessionStatus;
     ovr_GetSessionStatus(m_ovrSession, &sessionStatus);
@@ -72,7 +89,7 @@ void Renderer::Render()
     {
         throw std::runtime_error("ovrSessionStatus.ShouldQuit");
     }
-    
+
     if (sessionStatus.ShouldRecenter)
     {
         ovr_RecenterTrackingOrigin(m_ovrSession);
@@ -99,19 +116,9 @@ void Renderer::Render()
             // Clear and set up rendertarget
             float white[] = { 1.f, 1.f, 1.f, 1.f };
             ID3D11RenderTargetView* rtv = m_eyeRenderTexture[eye]->GetRTV();
-            m_d3dDeviceContext->OMSetRenderTargets(1, &rtv, m_eyeDepthBuffer[eye]->TexDSV.Get());
+            m_d3dDeviceContext->OMSetRenderTargets(1, &rtv, m_eyeDepthBuffer[eye].Get());
             m_d3dDeviceContext->ClearRenderTargetView(rtv, white);
-            m_d3dDeviceContext->ClearDepthStencilView(m_eyeDepthBuffer[eye]->TexDSV.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
-
-            // Set viewport
-            D3D11_VIEWPORT vp;
-            vp.Width = static_cast<float>(m_eyeRenderViewport[eye].Size.w);
-            vp.Height = static_cast<float>(m_eyeRenderViewport[eye].Size.h);
-            vp.MinDepth = 0;
-            vp.MaxDepth = 1;
-            vp.TopLeftX = static_cast<float>(m_eyeRenderViewport[eye].Pos.x);
-            vp.TopLeftY = static_cast<float>(m_eyeRenderViewport[eye].Pos.y);
-            m_d3dDeviceContext->RSSetViewports(1, &vp);
+            m_d3dDeviceContext->ClearDepthStencilView(m_eyeDepthBuffer[eye].Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
 
             //Get the pose information in XM format
             XMVECTOR eyeQuat = XMVectorSet(
@@ -137,13 +144,7 @@ void Renderer::Render()
                 p.M[0][3], p.M[1][3], p.M[2][3], p.M[3][3]);
             XMMATRIX prod = XMMatrixMultiply(view, proj);
 
-            m_d3dDeviceContext->IASetInputLayout(m_inputLayout.Get());
-            m_d3dDeviceContext->VSSetShader(m_vertexShader.Get(), nullptr, 0);
-            m_d3dDeviceContext->PSSetShader(m_pixelShader.Get() , nullptr, 0);
-            m_d3dDeviceContext->RSSetState(m_rasterizer.Get());
-            m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
-
-            gOculusApp->GetScene()->Render(&prod);
+            RenderScene(&prod);
 
             // Commit rendering to the swap chain
             m_eyeRenderTexture[eye]->Commit();
@@ -172,10 +173,9 @@ void Renderer::Render()
     }
 
     // Render mirror
-    ID3D11Texture2D* tex = nullptr;
+    ComPtr<ID3D11Texture2D> tex;
     ovr_GetMirrorTextureBufferDX(m_ovrSession, m_mirrorTexture, IID_PPV_ARGS(&tex));
-    m_d3dDeviceContext->CopyResource(m_backBuffer.Get(), tex);
-    tex->Release();
+    m_d3dDeviceContext->CopyResource(m_backBuffer.Get(), tex.Get());
     m_swapChain->Present(0, 0);
 }
 
@@ -193,8 +193,17 @@ void Renderer::InitializeOVR()
 
 void Renderer::InitializeD3D(HWND window)
 {
-    m_clientWidth = m_hmdDesc.Resolution.w / 2;
-    m_clientHeight = m_hmdDesc.Resolution.h / 2;
+    if (RendererType::Vitamin == m_rendererType)
+    {
+        m_clientWidth = 1080;
+        m_clientHeight = 600;
+    }
+
+    if (RendererType::Oculus == m_rendererType)
+    {
+        m_clientWidth = m_hmdDesc.Resolution.w / 2;
+        m_clientHeight = m_hmdDesc.Resolution.h / 2;
+    }
 
     RECT size = { 0, 0, m_clientWidth, m_clientHeight };
     AdjustWindowRect(&size, WS_OVERLAPPEDWINDOW, false);
@@ -223,15 +232,14 @@ void Renderer::InitializeD3D(HWND window)
         }
     }
 
-    auto DriverType = pAdapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE;
-    if (FAILED(D3D11CreateDevice(pAdapter, DriverType, 0, 0, 0, 0, D3D11_SDK_VERSION, &m_d3dDevice, 0, &m_d3dDeviceContext)))
+    auto driverType = pAdapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE;
+    if (FAILED(D3D11CreateDevice(pAdapter, driverType, 0, 0, 0, 0, D3D11_SDK_VERSION, &m_d3dDevice, 0, &m_d3dDeviceContext)))
     {
         throw std::runtime_error("D3D11CreateDevice failed.");
     }
 
     // Create swap chain
     DXGI_SWAP_CHAIN_DESC scDesc = {};
-    scDesc.BufferCount = 2;
     scDesc.BufferDesc.Width = m_clientWidth;
     scDesc.BufferDesc.Height = m_clientHeight;
     scDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -240,11 +248,30 @@ void Renderer::InitializeD3D(HWND window)
     scDesc.OutputWindow = window;
     scDesc.SampleDesc.Count = 1;
     scDesc.Windowed = true;
-    scDesc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
+    if (RendererType::Vitamin == m_rendererType)
+    {
+        scDesc.BufferCount = 1;
+        scDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        scDesc.SampleDesc.Quality = 0;
+    }
+    if (RendererType::Oculus == m_rendererType)
+    {
+        scDesc.BufferCount = 2;
+        scDesc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
+    }
+
     if (FAILED(pDXGIFactory->CreateSwapChain(m_d3dDevice.Get(), &scDesc, &m_swapChain)))
     {
         throw std::runtime_error("CreateSwapChain failed.");
     }
+
+    // Set max frame latency to 1
+    ComPtr<IDXGIDevice1> pDXGIDevice1;
+    if (FAILED(m_d3dDevice.As(&pDXGIDevice1)))
+    {
+        throw std::runtime_error("m_d3dDevice.As(&pDXGIDevice1) failed.");
+    }
+    pDXGIDevice1->SetMaximumFrameLatency(1);
 
     // Create backbuffer
     m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&m_backBuffer);
@@ -254,8 +281,9 @@ void Renderer::InitializeD3D(HWND window)
     }
 
     // Main depth buffer
-    m_depthBuffer = new DepthBuffer(m_d3dDevice.Get(), m_clientWidth, m_clientHeight);
-    m_d3dDeviceContext->OMSetRenderTargets(1, &m_backBufferRT, m_depthBuffer->TexDSV.Get());
+    CreateDepthBuffer(m_clientWidth, m_clientHeight, 1, &m_depthBuffer);
+
+    m_d3dDeviceContext->OMSetRenderTargets(1, m_backBufferRT.GetAddressOf(), m_depthBuffer.Get());
 
     // Constant buffer for shader constants
     D3D11_BUFFER_DESC cbDesc = {};
@@ -266,13 +294,65 @@ void Renderer::InitializeD3D(HWND window)
     THROW_IF_FAILED(m_d3dDevice->CreateBuffer(&cbDesc, nullptr, &m_constantBuffer), "Create Buffer failed.");
     m_d3dDeviceContext->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
 
-    // Set max frame latency to 1
-    ComPtr<IDXGIDevice1> pDXGIDevice1;
-    if (FAILED(m_d3dDevice.As(&pDXGIDevice1)))
+    if (RendererType::Oculus == m_rendererType)
     {
-        throw std::runtime_error("m_d3dDevice.As(&pDXGIDevice1) failed.");
+        for (int eye = 0; eye < 2; eye++)
+        {
+            ovrSizei idealSize = ovr_GetFovTextureSize(m_ovrSession, (ovrEyeType)eye, m_hmdDesc.DefaultEyeFov[eye], 1.0f);
+            m_eyeRenderTexture[eye] = new OculusTexture();
+            m_eyeRenderTexture[eye]->Init(m_ovrSession, m_d3dDevice.Get(), idealSize.w, idealSize.h);
+            CreateDepthBuffer(idealSize.w, idealSize.h, 1, &m_eyeDepthBuffer[eye]);
+            m_eyeRenderViewport[eye].Pos.x = 0;
+            m_eyeRenderViewport[eye].Pos.y = 0;
+            m_eyeRenderViewport[eye].Size = idealSize;
+            if (!m_eyeRenderTexture[eye]->m_textureSwapChain)
+            {
+                throw std::runtime_error("Create texture failed.");
+            }
+        }
+
+        // Create a mirror to see on the monitor.
+        ovrMirrorTextureDesc mirrorDesc = {};
+        mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+        mirrorDesc.Width = m_clientWidth;
+        mirrorDesc.Height = m_clientHeight;
+        if (OVR_FAILURE(ovr_CreateMirrorTextureDX(m_ovrSession, m_d3dDevice.Get(), &mirrorDesc, &m_mirrorTexture)))
+        {
+            throw std::runtime_error("Create mirror texture failed.");
+        }
+
+        // FloorLevel will give tracking poses where the floor height is 0
+        ovr_SetTrackingOriginType(m_ovrSession, ovrTrackingOrigin_FloorLevel);
     }
-    pDXGIDevice1->SetMaximumFrameLatency(1);
+
+    // Set viewport
+    if (RendererType::Vitamin == m_rendererType)
+    {
+        D3D11_VIEWPORT mScreenViewport = {};
+        mScreenViewport.TopLeftX = 0;
+        mScreenViewport.TopLeftY = 0;
+        mScreenViewport.Width = static_cast<float>(m_clientWidth);
+        mScreenViewport.Height = static_cast<float>(m_clientHeight);
+        mScreenViewport.MinDepth = 0.0f;
+        mScreenViewport.MaxDepth = 1.0f;
+        m_d3dDeviceContext->RSSetViewports(1, &mScreenViewport);
+    }
+    if (RendererType::Oculus == m_rendererType)
+    {
+        for (int eye = 0; eye < 2; eye++)
+        {
+            // Set viewport
+            D3D11_VIEWPORT vp;
+            vp.Width = static_cast<float>(m_eyeRenderViewport[eye].Size.w);
+            vp.Height = static_cast<float>(m_eyeRenderViewport[eye].Size.h);
+            vp.MinDepth = 0;
+            vp.MaxDepth = 1;
+            vp.TopLeftX = static_cast<float>(m_eyeRenderViewport[eye].Pos.x);
+            vp.TopLeftY = static_cast<float>(m_eyeRenderViewport[eye].Pos.y);
+            m_d3dDeviceContext->RSSetViewports(1, &vp);
+        }
+
+    }
 }
 
 void Renderer::InitializeShaders()
@@ -319,14 +399,46 @@ void Renderer::InitializeShaders()
     D3D11_RASTERIZER_DESC rs = {};
     rs.AntialiasedLineEnable = true;
     rs.DepthClipEnable = true;
-    rs.CullMode = D3D11_CULL_BACK;
-    rs.FillMode = D3D11_FILL_WIREFRAME; // D3D11_FILL_WIREFRAME
+    rs.CullMode = D3D11_CULL_NONE; // D3D11_CULL_BACK
+    rs.FrontCounterClockwise = true;
+    rs.FillMode = D3D11_FILL_WIREFRAME; // D3D11_FILL_SOLID;
+    rs.MultisampleEnable = true;
     THROW_IF_FAILED(m_d3dDevice->CreateRasterizerState(&rs, &m_rasterizer), "CreateRasterizerState failed.");
-
+    
     // Create depth state
     D3D11_DEPTH_STENCIL_DESC ds = {};
-    ds.DepthEnable = true;
+    ds.DepthEnable = false;
     ds.DepthFunc = D3D11_COMPARISON_LESS;
-    ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
     THROW_IF_FAILED(m_d3dDevice->CreateDepthStencilState(&ds, &m_depthState), "CreateDepthStencilState failed.");
+}
+
+void Renderer::RenderScene(XMMATRIX* projView)
+{
+    m_d3dDeviceContext->IASetInputLayout(m_inputLayout.Get());
+    m_d3dDeviceContext->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    m_d3dDeviceContext->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    m_d3dDeviceContext->RSSetState(m_rasterizer.Get());
+    m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
+
+    gOculusApp->GetScene()->Render(projView);
+}
+
+void Renderer::CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView)
+{
+    D3D11_TEXTURE2D_DESC dsDesc = {};
+    dsDesc.Width = width;
+    dsDesc.Height = height;
+    dsDesc.MipLevels = 1;
+    dsDesc.ArraySize = 1;
+    dsDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    dsDesc.SampleDesc.Count = sampleCount;
+    dsDesc.SampleDesc.Quality = 0;
+    dsDesc.Usage = D3D11_USAGE_DEFAULT;
+    dsDesc.CPUAccessFlags = 0;
+    dsDesc.MiscFlags = 0;
+    dsDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    ComPtr<ID3D11Texture2D> tex;
+    m_d3dDevice->CreateTexture2D(&dsDesc, NULL, &tex);
+    m_d3dDevice->CreateDepthStencilView(tex.Get(), NULL, ppDepthStencilView);
 }

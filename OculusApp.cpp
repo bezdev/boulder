@@ -8,8 +8,7 @@ using namespace DirectX;
 
 extern OculusApp* gOculusApp = nullptr;
 
-LRESULT CALLBACK
-MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     return gOculusApp->WindowProc(hwnd, msg, wParam, lParam);
 }
@@ -21,7 +20,7 @@ OculusApp::OculusApp(HINSTANCE hInstance) :
 {
     gOculusApp = this;
 
-    m_renderer = new Renderer();
+    m_renderer = new Renderer(RendererType::Vitamin);
 }
 
 OculusApp::~OculusApp()

@@ -6,6 +6,7 @@
 
 using namespace DirectX;
 
+
 Model::Model(ID3D11Device* device, DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 rotation, MeshData& meshData) :
     m_position(position),
     m_rotation(rotation),
@@ -40,7 +41,7 @@ void Model::Render(XMMATRIX* projView)
     XMMATRIX modelMat = XMMatrixMultiply(XMMatrixRotationQuaternion(XMLoadFloat4(&m_rotation)), XMMatrixTranslationFromVector(XMLoadFloat3(&m_position)));
     ConstantBuffers::ChangesEveryPrim changesEveryPrim;
     changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
-    changesEveryPrim.Color = { 1.f, 0.f, 0.f, 1.f };
+    changesEveryPrim.Color = { 1.f, 1.f, 1.f, 1.f };
 
     ID3D11Buffer* constantBuffer = gOculusApp->GetRenderer()->GetConstantBuffer();
     D3D11_MAPPED_SUBRESOURCE map;
@@ -54,5 +55,5 @@ void Model::Render(XMMATRIX* projView)
     deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     deviceContext->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
 
-    deviceContext->DrawIndexedInstanced(m_indexCount, 2, 0, 0, 0);
+    deviceContext->DrawIndexed(m_indexCount, 0, 0);
 }
