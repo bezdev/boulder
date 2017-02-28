@@ -11,7 +11,8 @@ Model::Model(ID3D11Device* device, DirectX::XMFLOAT3 position, DirectX::XMFLOAT4
     m_position(position),
     m_rotation(rotation),
     m_vertexCount(meshData.Vertices.size()),
-    m_indexCount(meshData.Indices.size())
+    m_indexCount(meshData.Indices.size()),
+    m_topology(meshData.Topology)
 {
     D3D11_BUFFER_DESC bd = {};
     bd.Usage = D3D11_USAGE_DEFAULT;
@@ -52,7 +53,7 @@ void Model::Render(XMMATRIX* projView)
     UINT offset = 0;
     UINT size = sizeof(Vertex);
     deviceContext->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &size, &offset);
-    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    deviceContext->IASetPrimitiveTopology(m_topology);
     deviceContext->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
 
     deviceContext->DrawIndexed(m_indexCount, 0, 0);

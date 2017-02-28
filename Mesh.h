@@ -33,6 +33,7 @@ struct MeshData
 {
     std::vector<Vertex> Vertices;
     std::vector<unsigned short> Indices;
+    D3D_PRIMITIVE_TOPOLOGY Topology;
 };
 
 namespace
@@ -51,7 +52,8 @@ namespace
             Vertex(-x2, -y2, +z2, Colors::Yellow),
             Vertex(-x2, +y2, +z2, Colors::Cyan),
             Vertex(+x2, +y2, +z2, Colors::Magenta),
-            Vertex(+x2, -y2, +z2, Colors::Silver) });
+            Vertex(+x2, -y2, +z2, Colors::Silver)
+        });
 
         meshData.Indices.assign({
             // front face
@@ -71,6 +73,29 @@ namespace
             1, 6, 2,
             // bottom face
             4, 0, 3,
-            4, 3, 7 });
+            4, 3, 7
+        });
+
+        meshData.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    }
+
+    void CreateAxisMesh(float x, float y, float z, MeshData& meshData)
+    {
+        meshData.Vertices.assign({
+            Vertex(0, 0, 0, Colors::Red),
+            Vertex(x, 0, 0, Colors::Red),
+            Vertex(0, 0, 0, Colors::Blue),
+            Vertex(0, y, 0, Colors::Blue),
+            Vertex(0, 0, 0, Colors::Green),
+            Vertex(0, 0, z, Colors::Green)
+        });
+
+        meshData.Indices.assign({
+            0, 1, // x
+            2, 3, // y
+            4, 5  // z
+        });
+
+        meshData.Topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
     }
 }

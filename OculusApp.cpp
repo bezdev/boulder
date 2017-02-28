@@ -46,6 +46,10 @@ void OculusApp::Initialize()
     CreateBoxMesh(5.f, 5.f, 5.f, boxMesh);
     m_scene->AddModel(new Model(m_renderer->GetDevice(), XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), boxMesh));
 
+    MeshData unitAxis;
+    CreateAxisMesh(5.f, 5.f, 5.f, unitAxis);
+    m_scene->AddModel(new Model(m_renderer->GetDevice(), XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), unitAxis));
+
     m_camera = new Camera(XMVectorSet(0.0f, 0.0f, 10.0f, 0), XMQuaternionIdentity());
 }
 

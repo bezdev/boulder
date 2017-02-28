@@ -64,7 +64,7 @@ void Renderer::Render()
 void Renderer::RenderVitamin()
 {
     // Build the view matrix.
-    XMVECTOR pos = XMVectorSet(0.0f, 0.f, 10.f, 1.0f);
+    XMVECTOR pos = XMVectorSet(10.0f, 10.f, 5.f, 1.0f);
     XMVECTOR target = XMVectorZero();
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -351,7 +351,6 @@ void Renderer::InitializeD3D(HWND window)
             vp.TopLeftY = static_cast<float>(m_eyeRenderViewport[eye].Pos.y);
             m_d3dDeviceContext->RSSetViewports(1, &vp);
         }
-
     }
 }
 

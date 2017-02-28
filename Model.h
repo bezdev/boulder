@@ -21,4 +21,6 @@ protected:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
     UINT m_vertexCount;
     UINT m_indexCount;
+
+    D3D_PRIMITIVE_TOPOLOGY m_topology;
 };
