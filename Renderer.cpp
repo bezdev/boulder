@@ -68,7 +68,8 @@ void Renderer::RenderVitamin()
     XMVECTOR target = XMVectorZero();
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-    XMMATRIX V = XMMatrixLookAtRH(pos, target, up);
+
+    XMMATRIX V = gOculusApp->GetCamera()->GetViewMatrix();// XMMatrixLookAtRH(pos, target, up);
     XMMATRIX P = XMMatrixPerspectiveFovRH(XM_PI / 4, static_cast<float>(m_clientWidth) / m_clientHeight, .2f, 1000.0f);
     XMMATRIX prod = XMMatrixMultiply(V, P);
 

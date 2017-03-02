@@ -22,8 +22,16 @@ public:
     DirectX::XMMATRIX GetViewMatrix();
 
     DirectX::XMVECTOR GetPosition() { return m_position; };
+    void SetPosition(DirectX::XMVECTOR value) { m_position = value; };
+
     DirectX::XMVECTOR GetRotation() { return m_rotation; };
+
+    void AddRollPitchYaw(float roll, float pitch, float yaw);
 protected:
     DirectX::XMVECTOR m_position;
     DirectX::XMVECTOR m_rotation;
+
+    float m_roll;
+    float m_pitch;
+    float m_yaw;
 };

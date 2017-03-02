@@ -1,9 +1,8 @@
 #include "OculusApp.h"
-
+#include <windowsx.h>
 #define APP_NAME L"boulder"
 
 // TODO: should not be using direct x in this file
-#include <DirectXMath.h>
 using namespace DirectX;
 
 extern OculusApp* gOculusApp = nullptr;
@@ -20,11 +19,15 @@ OculusApp::OculusApp(HINSTANCE hInstance) :
 {
     gOculusApp = this;
 
+    m_controller = new Controller();
     m_renderer = new Renderer(RendererType::Vitamin);
 }
 
 OculusApp::~OculusApp()
 {
+    delete m_controller;
+    m_controller = nullptr;
+
     delete m_renderer;
     m_renderer = nullptr;
 
@@ -110,6 +113,15 @@ LRESULT OculusApp::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch(msg)
     {
+    case WM_KEYDOWN:
+        m_controller->OnKeyDown(wParam);
+        return 0;
+    case WM_KEYUP:
+        m_controller->OnKeyUp(wParam);
+        return 0;
+    case WM_MOUSEMOVE:
+        m_controller->OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
     case WM_ACTIVATE:
         if ((LOWORD(wParam) == WA_INACTIVE)) { }
         return 0;

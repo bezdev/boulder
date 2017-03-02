@@ -8,6 +8,7 @@
 #include "OVR_CAPI_D3D.h"
 
 #include "bez.h"
+#include "Controller.h"
 #include "Renderer.h"
 #include "Scene.h"
 #include "Camera.h"
@@ -34,6 +35,7 @@ protected:
     HWND m_window;
     bool m_isRunning;
 
+    Controller* m_controller;
     Renderer* m_renderer;
     Scene* m_scene;
     Camera* m_camera;
