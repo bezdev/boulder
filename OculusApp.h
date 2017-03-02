@@ -12,6 +12,9 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "Camera.h"
+#include "Timer.h"
+
+#define RENDERER RendererType::Oculus
 
 class OculusApp
 {
@@ -28,8 +31,11 @@ public:
     Renderer* GetRenderer() { return m_renderer; };
     Scene* GetScene() { return m_scene; };
     Camera* GetCamera() { return m_camera; };
+    Timer* GetGlobalTimer() { return m_globalTimer; };
 protected:
     void InitializeWindow();
+
+    void UpdateControllerState();
 
     HINSTANCE m_hInstance;
     HWND m_window;
@@ -39,6 +45,7 @@ protected:
     Renderer* m_renderer;
     Scene* m_scene;
     Camera* m_camera;
+    Timer* m_globalTimer;
 };
 
 extern OculusApp* gOculusApp;

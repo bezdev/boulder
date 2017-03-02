@@ -135,7 +135,7 @@ void Renderer::RenderOculus()
 
             // Get view and projection matrices for the Rift camera
             XMVECTOR CombinedPos = XMVectorAdd(gOculusApp->GetCamera()->GetPosition(), XMVector3Rotate(eyePos, gOculusApp->GetCamera()->GetRotation()));
-            Camera finalCam(CombinedPos, XMQuaternionMultiply(eyeQuat, gOculusApp->GetCamera()->GetRotation()));
+            Camera finalCam(CombinedPos, XMQuaternionMultiply(gOculusApp->GetCamera()->GetRotation(), eyeQuat));
             XMMATRIX view = finalCam.GetViewMatrix();
             ovrMatrix4f p = ovrMatrix4f_Projection(eyeRenderDesc[eye].Fov, 0.2f, 1000.0f, ovrProjection_None);
             XMMATRIX proj = XMMatrixSet(

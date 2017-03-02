@@ -20,7 +20,7 @@ OculusApp::OculusApp(HINSTANCE hInstance) :
     gOculusApp = this;
 
     m_controller = new Controller();
-    m_renderer = new Renderer(RendererType::Vitamin);
+    m_renderer = new Renderer(RENDERER);
 }
 
 OculusApp::~OculusApp()
@@ -36,6 +36,9 @@ OculusApp::~OculusApp()
 
     delete m_camera;
     m_camera = nullptr;
+
+    delete m_globalTimer;
+    m_globalTimer = nullptr;
 }
 
 void OculusApp::Initialize()
@@ -58,11 +61,26 @@ void OculusApp::Initialize()
 
 void OculusApp::Run()
 {
+    m_globalTimer = new Timer();
+    static bool firstMainLoopIt = true;
+
+    // main loop
     while (HandleMessages())
     {
-        // controller
-        // update
+        if (firstMainLoopIt)
+        {
+            m_globalTimer->Reset();
+        }
+        else
+        {
+            m_globalTimer->Update();
+        }
+        
+        UpdateControllerState();
+
         m_renderer->Render();
+
+        firstMainLoopIt = false;
     }
 }
 
@@ -95,6 +113,27 @@ void OculusApp::InitializeWindow()
     }
 
     m_isRunning = true;
+}
+
+void OculusApp::UpdateControllerState()
+{
+    if (m_controller->IsKeyDown('W'))
+    {
+        m_camera->Move(MoveDirection::Forward);
+    }
+    if (m_controller->IsKeyDown('A'))
+    {
+        m_camera->Move(MoveDirection::Left);
+    }
+    if (m_controller->IsKeyDown('S'))
+    {
+        m_camera->Move(MoveDirection::Back);
+    }
+    if (m_controller->IsKeyDown('D'))
+    {
+        m_camera->Move(MoveDirection::Right);
+    }
+
 }
 
 bool OculusApp::HandleMessages()
