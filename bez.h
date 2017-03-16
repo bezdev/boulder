@@ -39,3 +39,8 @@ inline auto scope_exit(T&& lambda)
 {
     return lambda_call<T>(std::forward<T>(lambda));
 }
+
+inline float RandomInRange(float min, float max)
+{
+    return static_cast<float>(rand()) / (RAND_MAX + 1) * (max - min) + min;
+}

@@ -14,7 +14,7 @@
 #include "Camera.h"
 #include "Timer.h"
 
-#define RENDERER RendererType::Oculus
+#define RENDERER RendererType::Vitamin
 
 class OculusApp
 {
@@ -36,6 +36,8 @@ protected:
     void InitializeWindow();
 
     void UpdateControllerState();
+
+    void CalculateFrameStats();
 
     HINSTANCE m_hInstance;
     HWND m_window;

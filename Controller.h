@@ -12,6 +12,8 @@ public:
 
     bool IsKeyDown(char key);
 private:
+    void OnKeyPressed(DWORD vkey);
+
     int m_prevX;
     int m_prevY;
 

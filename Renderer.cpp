@@ -20,7 +20,8 @@ Renderer::Renderer(RendererType rendererType) :
     m_eyeDepthBuffer{},
     m_eyeRenderTexture{},
     m_frameIndex(0),
-    m_rendererType(rendererType)
+    m_rendererType(rendererType),
+    m_rasterizerState(RasterizerState::Solid)
 {
     m_renderObjects.clear();
 }
@@ -47,7 +48,6 @@ void Renderer::Initialize(HWND window)
 
     InitializeD3D(window);
     InitializeShaders();
-    InitializeMaterials();
     InitializeGeometryBuffers();
 }
 
@@ -69,6 +69,11 @@ void Renderer::Render()
     }
 }
 
+void Renderer::ToggleRasterizerState()
+{
+    m_rasterizerState = (RasterizerState::Solid == m_rasterizerState) ? RasterizerState::Wireframe : RasterizerState::Solid;
+}
+
 void Renderer::RenderVitamin()
 {
     // Build the view matrix.
@@ -76,8 +81,7 @@ void Renderer::RenderVitamin()
     XMVECTOR target = XMVectorZero();
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-
-    XMMATRIX V = gOculusApp->GetCamera()->GetViewMatrix();// XMMatrixLookAtRH(pos, target, up);
+    XMMATRIX V = gOculusApp->GetCamera()->GetViewMatrix();
     XMMATRIX P = XMMatrixPerspectiveFovRH(XM_PI / 4, static_cast<float>(m_clientWidth) / m_clientHeight, .2f, 1000.0f);
     XMMATRIX prod = XMMatrixMultiply(V, P);
 
@@ -406,33 +410,37 @@ void Renderer::InitializeShaders()
     }
     THROW_IF_FAILED(m_d3dDevice->CreatePixelShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &Shaders::SolidColorShader->PixelShader), "CreatePixelShader failed.");
     
-    // Create rasterizer
+    // Create rasterizers
     D3D11_RASTERIZER_DESC rs = {};
     rs.AntialiasedLineEnable = true;
     rs.DepthClipEnable = true;
-    rs.CullMode = D3D11_CULL_NONE; // D3D11_CULL_BACK
+    rs.CullMode = D3D11_CULL_NONE;
     rs.FrontCounterClockwise = true;
-    rs.FillMode = D3D11_FILL_WIREFRAME; // D3D11_FILL_SOLID;
+    rs.FillMode = D3D11_FILL_WIREFRAME;
     rs.MultisampleEnable = true;
-    THROW_IF_FAILED(m_d3dDevice->CreateRasterizerState(&rs, &m_rasterizer), "CreateRasterizerState failed.");
+    THROW_IF_FAILED(m_d3dDevice->CreateRasterizerState(&rs, &m_wireframeRasterizer), "CreateRasterizerState failed.");
+
+    rs = {};
+    rs.AntialiasedLineEnable = true;
+    rs.DepthClipEnable = true;
+    rs.CullMode = D3D11_CULL_BACK;
+    rs.FrontCounterClockwise = true;
+    rs.FillMode = D3D11_FILL_SOLID;
+    rs.MultisampleEnable = true;
+    THROW_IF_FAILED(m_d3dDevice->CreateRasterizerState(&rs, &m_solidRasterizer), "CreateRasterizerState failed.");
     
     // Create depth state
     D3D11_DEPTH_STENCIL_DESC ds = {};
-    ds.DepthEnable = false;
+    ds.DepthEnable = true;
     ds.DepthFunc = D3D11_COMPARISON_LESS;
-    ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     THROW_IF_FAILED(m_d3dDevice->CreateDepthStencilState(&ds, &m_depthState), "CreateDepthStencilState failed.");
-}
-
-void Renderer::InitializeMaterials()
-{
-    Materials::SolidColorMaterial = new SolidColorMaterial();
 }
 
 void Renderer::InitializeGeometryBuffers()
 {
     MeshData<ColorVertex> boxMesh;
-    GeometryBuilder::CreateBoxMesh(5.f, 5.f, 5.f, boxMesh);
+    GeometryBuilder::CreateBoxMesh(5.f, 5.f, 5.f, Colors::White, boxMesh);
     Meshes::Primitives::BoxMesh = new Mesh(m_d3dDevice.Get(), boxMesh);
 
     MeshData<ColorVertex> axisMesh;
@@ -448,21 +456,33 @@ void Renderer::RenderScene(XMMATRIX* projView)
         m_d3dDeviceContext->IASetInputLayout(shader->InputLayout.Get());
         m_d3dDeviceContext->VSSetShader(shader->VertexShader.Get(), nullptr, 0);
         m_d3dDeviceContext->PSSetShader(shader->PixelShader.Get(), nullptr, 0);
-        m_d3dDeviceContext->RSSetState(m_rasterizer.Get());
+
+        if (RasterizerState::Solid == m_rasterizerState)
+        {
+            m_d3dDeviceContext->RSSetState(m_solidRasterizer.Get());
+        }
+        else if (RasterizerState::Wireframe == m_rasterizerState)
+        {
+            m_d3dDeviceContext->RSSetState(m_wireframeRasterizer.Get());
+        }
+
         m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
 
-        XMMATRIX modelMat = XMMatrixMultiply(
-            XMMatrixRotationQuaternion(XMLoadFloat4(&m_renderObjects[i]->GetRotation())),
-            XMMatrixTranslationFromVector(XMLoadFloat3(&m_renderObjects[i]->GetPosition())));
-        ConstantBuffers::ChangesEveryPrim changesEveryPrim;
-        changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
-        changesEveryPrim.Color = { 1.f, 1.f, 1.f, 1.f };
+        SolidColorMaterial* scm = dynamic_cast<SolidColorMaterial*>(m_renderObjects[i]->GetMaterial());
+        if (scm)
+        {
+            XMMATRIX modelMat = XMMatrixMultiply(
+                XMMatrixRotationQuaternion(XMLoadFloat4(&m_renderObjects[i]->GetRotation())),
+                XMMatrixTranslationFromVector(XMLoadFloat3(&m_renderObjects[i]->GetPosition())));
+            ConstantBuffers::ChangesEveryPrim changesEveryPrim;
+            changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
+            changesEveryPrim.Color = scm->GetColor();
 
-        // TODO: change constant buffer
-        D3D11_MAPPED_SUBRESOURCE map;
-        THROW_IF_FAILED(m_d3dDeviceContext->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map), "Map failed.");
-        memcpy(map.pData, &changesEveryPrim, sizeof(changesEveryPrim));
-        m_d3dDeviceContext->Unmap(m_constantBuffer.Get(), 0);
+            D3D11_MAPPED_SUBRESOURCE map;
+            THROW_IF_FAILED(m_d3dDeviceContext->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map), "Map failed.");
+            memcpy(map.pData, &changesEveryPrim, sizeof(changesEveryPrim));
+            m_d3dDeviceContext->Unmap(m_constantBuffer.Get(), 0);
+        }
 
         UINT offset = 0;
         ID3D11Buffer* vertexBuffer = m_renderObjects[i]->GetMesh()->GetVertexBuffer();

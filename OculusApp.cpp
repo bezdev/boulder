@@ -1,6 +1,6 @@
 #include "OculusApp.h"
-#include <windowsx.h>
-#define APP_NAME L"boulder"
+
+#define APP_NAME "boulder"
 
 extern OculusApp* gOculusApp = nullptr;
 
@@ -43,7 +43,7 @@ void OculusApp::Initialize()
     InitializeWindow();
     m_renderer->Initialize(m_window);
 
-    m_scene = new Scene();
+    m_scene = new CubeScene();
 
     m_camera = new Camera(DirectX::XMVectorSet(0.0f, 0.0f, 10.0f, 0), DirectX::XMQuaternionIdentity());
 }
@@ -69,24 +69,26 @@ void OculusApp::Run()
 
         m_renderer->Render();
 
+        CalculateFrameStats();
+
         firstMainLoopIt = false;
     }
 }
 
 void OculusApp::InitializeWindow()
 {
-    WNDCLASSW wc = {};
+    WNDCLASS wc = {};
     wc.style         = CS_OWNDC;
     wc.lpszClassName = APP_NAME;
     wc.lpfnWndProc   = MainWindowProc;
     wc.cbWndExtra = 0;
 
-    if (!RegisterClassW(&wc))
+    if (!RegisterClass(&wc))
     {
         throw std::runtime_error("RegisterClassW failed.");
     }
 
-    m_window = CreateWindowW(
+    m_window = CreateWindow(
         wc.lpszClassName,
         wc.lpszClassName,
         WS_OVERLAPPEDWINDOW,
@@ -122,7 +124,28 @@ void OculusApp::UpdateControllerState()
     {
         m_camera->Move(MoveDirection::Right);
     }
+}
 
+void OculusApp::CalculateFrameStats()
+{
+    static int frameCount = 0;
+    static float timeElapsed = 0.0f;
+
+    frameCount++;
+    timeElapsed += m_globalTimer->GetDelta();
+
+    if (timeElapsed >= 1000.0f)
+    {
+        float fps = frameCount / timeElapsed * 1000.f;
+        float mspf = timeElapsed / fps;
+
+        wchar_t titleBuffer[99];
+        swprintf_s(titleBuffer, L"FPS: %.0f", round(fps));
+        SetWindowTextW(m_window, titleBuffer);
+
+        frameCount = 0;
+        timeElapsed -= 1000.0f;
+    }
 }
 
 bool OculusApp::HandleMessages()

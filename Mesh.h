@@ -42,21 +42,21 @@ struct MeshData
 
 namespace GeometryBuilder
 {
-    static void CreateBoxMesh(float width, float height, float depth, MeshData<ColorVertex>& meshData)
+    static void CreateBoxMesh(float width, float height, float depth, DirectX::XMFLOAT4 color, MeshData<ColorVertex>& meshData)
     {
         float x2 = 0.5f * width;
         float y2 = 0.5f * height;
         float z2 = 0.5f * depth;
 
         meshData.Vertices.assign({
-            ColorVertex(-x2, -y2, -z2, Colors::White),
-            ColorVertex(-x2, +y2, -z2, Colors::Red),
-            ColorVertex(+x2, +y2, -z2, Colors::Green),
-            ColorVertex(+x2, -y2, -z2, Colors::Blue),
-            ColorVertex(-x2, -y2, +z2, Colors::Yellow),
-            ColorVertex(-x2, +y2, +z2, Colors::Cyan),
-            ColorVertex(+x2, +y2, +z2, Colors::Magenta),
-            ColorVertex(+x2, -y2, +z2, Colors::Silver)
+            ColorVertex(-x2, -y2, -z2, color),
+            ColorVertex(-x2, +y2, -z2, color),
+            ColorVertex(+x2, +y2, -z2, color),
+            ColorVertex(+x2, -y2, -z2, color),
+            ColorVertex(-x2, -y2, +z2, color),
+            ColorVertex(-x2, +y2, +z2, color),
+            ColorVertex(+x2, +y2, +z2, color),
+            ColorVertex(+x2, -y2, +z2, color)
         });
 
         meshData.Indices.assign({

@@ -12,6 +12,11 @@ Controller::Controller() :
 
 void Controller::OnKeyDown(DWORD vkey)
 {
+    if (m_keysDown[static_cast<int>(vkey)] == false)
+    {
+        OnKeyPressed(vkey);
+    }
+
     m_keysDown[static_cast<int>(vkey)] = true;
 }
 
@@ -44,4 +49,12 @@ void Controller::OnMouseMove(DWORD wParam, int x, int y)
 bool Controller::IsKeyDown(char key)
 {
     return m_keysDown[static_cast<int>(key)];
+}
+
+void Controller::OnKeyPressed(DWORD vkey)
+{
+    if ('N' == vkey)
+    {
+        gOculusApp->GetRenderer()->ToggleRasterizerState();
+    }
 }

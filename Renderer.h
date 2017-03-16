@@ -16,6 +16,12 @@ enum RendererType
     Oculus
 };
 
+enum RasterizerState
+{
+    Solid,
+    Wireframe
+};
+
 struct OculusTexture
 {
     ovrSession m_ovrSession;
@@ -95,6 +101,8 @@ public:
     void AddRenderObject(Model* model);
     void Render();
 
+    void ToggleRasterizerState();
+
     ID3D11Device* GetDevice()
     {
         return m_d3dDevice.Get();
@@ -104,7 +112,6 @@ protected:
     void InitializeOVR();
     void InitializeD3D(HWND window);
     void InitializeShaders();
-    void InitializeMaterials();
     void InitializeGeometryBuffers();
 
     void RenderVitamin();
@@ -123,8 +130,11 @@ protected:
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_backBufferRT;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_constantBuffer;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthBuffer;
-    Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizer;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthState;
+
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_wireframeRasterizer;
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_solidRasterizer;
+    RasterizerState m_rasterizerState;
 
     std::vector<Model*> m_renderObjects;
 

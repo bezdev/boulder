@@ -14,6 +14,8 @@ Model::Model(DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 rotation, Mesh* mesh,
 
 Model::~Model()
 {
+    delete m_material;
+    m_material = nullptr;
 }
 
 DirectX::XMFLOAT3 Model::GetPosition()

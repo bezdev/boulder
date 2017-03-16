@@ -11,7 +11,15 @@ public:
     Scene();
     void AddModel(Model* model);
 protected:
-    void InitializeScene();
+    virtual void InitializeScene();
 
     std::vector<std::unique_ptr<Model>> m_models;
+};
+
+class CubeScene : public Scene
+{
+public:
+    CubeScene();
+protected:
+    void InitializeScene();
 };
