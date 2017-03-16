@@ -22,6 +22,7 @@ Renderer::Renderer(RendererType rendererType) :
     m_frameIndex(0),
     m_rendererType(rendererType)
 {
+    m_renderObjects.clear();
 }
 
 Renderer::~Renderer()
@@ -46,6 +47,13 @@ void Renderer::Initialize(HWND window)
 
     InitializeD3D(window);
     InitializeShaders();
+    InitializeMaterials();
+    InitializeGeometryBuffers();
+}
+
+void Renderer::AddRenderObject(Model* model)
+{
+    m_renderObjects.push_back(model);
 }
 
 void Renderer::Render()
@@ -357,6 +365,9 @@ void Renderer::InitializeD3D(HWND window)
 
 void Renderer::InitializeShaders()
 {
+    // Initialize solid color shader
+    Shaders::SolidColorShader = new Shader();
+
     D3D11_INPUT_ELEMENT_DESC defaultVertexDesc[] = {
         { "Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "Color",    0, DXGI_FORMAT_R32G32B32A32_FLOAT,  0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 } };
@@ -379,7 +390,7 @@ void Renderer::InitializeShaders()
     {
         throw std::runtime_error((char*)errorBlob->GetBufferPointer());
     }
-    THROW_IF_FAILED(m_d3dDevice->CreateVertexShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &m_vertexShader), "CreateVertexShader failed.");
+    THROW_IF_FAILED(m_d3dDevice->CreateVertexShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &Shaders::SolidColorShader->VertexShader), "CreateVertexShader failed.");
 
     // Create input layout
     m_d3dDevice->CreateInputLayout(
@@ -387,14 +398,14 @@ void Renderer::InitializeShaders()
         sizeof(defaultVertexDesc) / sizeof(*defaultVertexDesc),
         blobData->GetBufferPointer(),
         blobData->GetBufferSize(),
-        &m_inputLayout);
+        &Shaders::SolidColorShader->InputLayout);
 
     if (FAILED(D3DCompile(defaultPixelShaderSrc, strlen(defaultPixelShaderSrc), 0, 0, 0, "main", "ps_4_0", 0, 0, &blobData, &errorBlob)))
     {
         throw std::runtime_error((char*)errorBlob->GetBufferPointer());
     }
-    THROW_IF_FAILED(m_d3dDevice->CreatePixelShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &m_pixelShader), "CreatePixelShader failed.");
-
+    THROW_IF_FAILED(m_d3dDevice->CreatePixelShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &Shaders::SolidColorShader->PixelShader), "CreatePixelShader failed.");
+    
     // Create rasterizer
     D3D11_RASTERIZER_DESC rs = {};
     rs.AntialiasedLineEnable = true;
@@ -413,15 +424,55 @@ void Renderer::InitializeShaders()
     THROW_IF_FAILED(m_d3dDevice->CreateDepthStencilState(&ds, &m_depthState), "CreateDepthStencilState failed.");
 }
 
+void Renderer::InitializeMaterials()
+{
+    Materials::SolidColorMaterial = new SolidColorMaterial();
+}
+
+void Renderer::InitializeGeometryBuffers()
+{
+    MeshData<ColorVertex> boxMesh;
+    GeometryBuilder::CreateBoxMesh(5.f, 5.f, 5.f, boxMesh);
+    Meshes::Primitives::BoxMesh = new Mesh(m_d3dDevice.Get(), boxMesh);
+
+    MeshData<ColorVertex> axisMesh;
+    GeometryBuilder::CreateAxisMesh(5.f, 5.f, 5.f, axisMesh);
+    Meshes::Primitives::AxisMesh = new Mesh(m_d3dDevice.Get(), axisMesh);
+}
+
 void Renderer::RenderScene(XMMATRIX* projView)
 {
-    m_d3dDeviceContext->IASetInputLayout(m_inputLayout.Get());
-    m_d3dDeviceContext->VSSetShader(m_vertexShader.Get(), nullptr, 0);
-    m_d3dDeviceContext->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    m_d3dDeviceContext->RSSetState(m_rasterizer.Get());
-    m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
+    for (std::size_t i = 0; i < m_renderObjects.size(); i++)
+    {
+        Shader* shader = m_renderObjects[i]->GetMaterial()->GetShader();
+        m_d3dDeviceContext->IASetInputLayout(shader->InputLayout.Get());
+        m_d3dDeviceContext->VSSetShader(shader->VertexShader.Get(), nullptr, 0);
+        m_d3dDeviceContext->PSSetShader(shader->PixelShader.Get(), nullptr, 0);
+        m_d3dDeviceContext->RSSetState(m_rasterizer.Get());
+        m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
 
-    gOculusApp->GetScene()->Render(projView);
+        XMMATRIX modelMat = XMMatrixMultiply(
+            XMMatrixRotationQuaternion(XMLoadFloat4(&m_renderObjects[i]->GetRotation())),
+            XMMatrixTranslationFromVector(XMLoadFloat3(&m_renderObjects[i]->GetPosition())));
+        ConstantBuffers::ChangesEveryPrim changesEveryPrim;
+        changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
+        changesEveryPrim.Color = { 1.f, 1.f, 1.f, 1.f };
+
+        // TODO: change constant buffer
+        D3D11_MAPPED_SUBRESOURCE map;
+        THROW_IF_FAILED(m_d3dDeviceContext->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map), "Map failed.");
+        memcpy(map.pData, &changesEveryPrim, sizeof(changesEveryPrim));
+        m_d3dDeviceContext->Unmap(m_constantBuffer.Get(), 0);
+
+        UINT offset = 0;
+        ID3D11Buffer* vertexBuffer = m_renderObjects[i]->GetMesh()->GetVertexBuffer();
+        ID3D11Buffer* indexBuffer = m_renderObjects[i]->GetMesh()->GetIndexBuffer();
+        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, m_renderObjects[i]->GetMesh()->GetVertexSize(), &offset);
+        m_d3dDeviceContext->IASetPrimitiveTopology(m_renderObjects[i]->GetMesh()->GetTopology());
+        m_d3dDeviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+        m_d3dDeviceContext->DrawIndexed(m_renderObjects[i]->GetMesh()->GetIndexCount(), 0, 0);
+    }
 }
 
 void Renderer::CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView)

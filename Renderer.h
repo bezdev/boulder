@@ -1,11 +1,14 @@
 #pragma once
 
 #include <wrl.h>
-#include <D3D11.h>
+#include <d3d11.h>
+#include <DirectXMath.h>
 #include <vector>
 
-#include <DirectXMath.h>
 #include "OVR_CAPI_D3D.h"
+
+#include "Shader.h"
+#include "Model.h"
 
 enum RendererType
 {
@@ -89,6 +92,7 @@ public:
     Renderer(RendererType rendererType);
     ~Renderer();
     void Initialize(HWND window);
+    void AddRenderObject(Model* model);
     void Render();
 
     ID3D11Device* GetDevice()
@@ -96,20 +100,12 @@ public:
         return m_d3dDevice.Get();
     }
 
-    ID3D11DeviceContext* GetDeviceContext()
-    {
-        return m_d3dDeviceContext.Get();
-    }
-
-    ID3D11Buffer* GetConstantBuffer()
-    {
-        return m_constantBuffer.Get();
-    }
-
 protected:
     void InitializeOVR();
     void InitializeD3D(HWND window);
     void InitializeShaders();
+    void InitializeMaterials();
+    void InitializeGeometryBuffers();
 
     void RenderVitamin();
     void RenderOculus();
@@ -130,19 +126,15 @@ protected:
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizer;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthState;
 
-    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_inputLayout;
-    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader;
-    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_pixelShader;
+    std::vector<Model*> m_renderObjects;
 
     ovrSession m_ovrSession;
     ovrHmdDesc m_hmdDesc;
     ovrGraphicsLuid m_gLuid;
     ovrMirrorTexture m_mirrorTexture;
-
     ovrRecti m_eyeRenderViewport[2];
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_eyeDepthBuffer[2];
     OculusTexture* m_eyeRenderTexture[2];
-
     long long m_frameIndex;
 
     RendererType m_rendererType;

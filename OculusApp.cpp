@@ -2,9 +2,6 @@
 #include <windowsx.h>
 #define APP_NAME L"boulder"
 
-// TODO: should not be using direct x in this file
-using namespace DirectX;
-
 extern OculusApp* gOculusApp = nullptr;
 
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -48,15 +45,7 @@ void OculusApp::Initialize()
 
     m_scene = new Scene();
 
-    MeshData boxMesh;
-    CreateBoxMesh(5.f, 5.f, 5.f, boxMesh);
-    m_scene->AddModel(new Model(m_renderer->GetDevice(), XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), boxMesh));
-
-    MeshData unitAxis;
-    CreateAxisMesh(5.f, 5.f, 5.f, unitAxis);
-    m_scene->AddModel(new Model(m_renderer->GetDevice(), XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), unitAxis));
-
-    m_camera = new Camera(XMVectorSet(0.0f, 0.0f, 10.0f, 0), XMQuaternionIdentity());
+    m_camera = new Camera(DirectX::XMVectorSet(0.0f, 0.0f, 10.0f, 0), DirectX::XMQuaternionIdentity());
 }
 
 void OculusApp::Run()

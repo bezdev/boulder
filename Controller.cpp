@@ -22,7 +22,7 @@ void Controller::OnKeyUp(DWORD vkey)
 
 void Controller::OnMouseMove(DWORD wParam, int x, int y)
 {
-    if ((wParam & MK_LBUTTON) != 0)
+    if ((wParam & MK_RBUTTON) != 0)
     {
         Camera* camera = gOculusApp->GetCamera();
         camera->MouseLook(x - m_prevX, y - m_prevY);
