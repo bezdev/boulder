@@ -3,6 +3,7 @@
 #include <wrl.h>
 #include <d3d11.h>
 #include <DirectXMath.h>
+
 #include <vector>
 
 #include "OVR_CAPI_D3D.h"
@@ -117,6 +118,8 @@ protected:
     void RenderVitamin();
     void RenderOculus();
     void RenderScene(DirectX::XMMATRIX* projView);
+    void SetShader(Shader* shader);
+    void SetRasterizerState(RasterizerState rasterizerState);
 
     void CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView);
 
@@ -135,8 +138,8 @@ protected:
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_wireframeRasterizer;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_solidRasterizer;
     RasterizerState m_rasterizerState;
-
-    std::vector<Model*> m_renderObjects;
+    
+    std::vector<std::pair<MeshType, std::vector<Model*>>> m_solidColorMaterialRenderObjects;
 
     ovrSession m_ovrSession;
     ovrHmdDesc m_hmdDesc;
@@ -149,3 +152,16 @@ protected:
 
     RendererType m_rendererType;
 };
+
+static inline int RenderObjectsContainsMeshType(const std::vector<std::pair<MeshType, std::vector<Model*>>>& renderObjects, MeshType meshType)
+{
+    for (std::size_t i = 0; i < renderObjects.size(); i++)
+    {
+        if (renderObjects[i].first == meshType)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}

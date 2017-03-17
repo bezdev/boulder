@@ -7,6 +7,12 @@
 
 #include <vector>
 
+enum MeshType
+{
+    PRIMITIVE_BOX,
+    PRIMITIVE_AXIS
+};
+
 namespace Colors
 {
     XMGLOBALCONST DirectX::XMFLOAT4 White(1.0f, 1.0f, 1.0f, 1.0f);
@@ -38,6 +44,7 @@ struct MeshData
     std::vector<T> Vertices;
     std::vector<unsigned short> Indices;
     D3D_PRIMITIVE_TOPOLOGY Topology;
+    MeshType MeshType;
 };
 
 namespace GeometryBuilder
@@ -81,6 +88,7 @@ namespace GeometryBuilder
         });
 
         meshData.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        meshData.MeshType = MeshType::PRIMITIVE_BOX;
     }
 
     static void CreateAxisMesh(float x, float y, float z, MeshData<ColorVertex>& meshData)
@@ -101,13 +109,14 @@ namespace GeometryBuilder
         });
 
         meshData.Topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
+        meshData.MeshType = MeshType::PRIMITIVE_AXIS;
     }
 }
 
 class Mesh
 {
 public:
-    template <class T>
+    template <typename T>
     Mesh(ID3D11Device* device, MeshData<T>& meshData);
 
     ID3D11Buffer* GetVertexBuffer();
@@ -116,6 +125,7 @@ public:
     UINT GetIndexCount();
     size_t* GetVertexSize();
     D3D_PRIMITIVE_TOPOLOGY GetTopology();
+    MeshType GetType();
 protected:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
@@ -123,13 +133,15 @@ protected:
     UINT m_indexCount;
     size_t m_vertexSize;
     D3D_PRIMITIVE_TOPOLOGY m_topology;
+    MeshType m_meshType;
 };
 
-template<typename T>
+template <typename T>
 inline Mesh::Mesh(ID3D11Device* device, MeshData<T>& meshData) :
     m_vertexCount(meshData.Vertices.size()),
     m_indexCount(meshData.Indices.size()),
-    m_topology(meshData.Topology)
+    m_topology(meshData.Topology),
+    m_meshType(meshData.MeshType)
 {
     m_vertexSize = sizeof(T);
     D3D11_BUFFER_DESC bd = {};

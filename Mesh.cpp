@@ -38,3 +38,8 @@ D3D_PRIMITIVE_TOPOLOGY Mesh::GetTopology()
 {
     return m_topology;
 }
+
+MeshType Mesh::GetType()
+{
+    return m_meshType;
+}

@@ -23,7 +23,7 @@ Renderer::Renderer(RendererType rendererType) :
     m_rendererType(rendererType),
     m_rasterizerState(RasterizerState::Solid)
 {
-    m_renderObjects.clear();
+    m_solidColorMaterialRenderObjects.clear();
 }
 
 Renderer::~Renderer()
@@ -53,7 +53,24 @@ void Renderer::Initialize(HWND window)
 
 void Renderer::AddRenderObject(Model* model)
 {
-    m_renderObjects.push_back(model);
+    MaterialType materialType = model->GetMaterial()->GetType();
+    
+    if (MaterialType::SolidColor == materialType)
+    {
+        int index = RenderObjectsContainsMeshType(m_solidColorMaterialRenderObjects, model->GetMesh()->GetType());
+        if (index < 0)
+        {
+            m_solidColorMaterialRenderObjects.push_back(std::make_pair<MeshType, std::vector<Model*>>(model->GetMesh()->GetType(), { model }));
+        }
+        else
+        {
+            m_solidColorMaterialRenderObjects[index].second.push_back(model);
+        }
+    }
+    else
+    {
+        throw std::runtime_error("adding unregistered material");
+    }
 }
 
 void Renderer::Render()
@@ -440,23 +457,75 @@ void Renderer::InitializeShaders()
 void Renderer::InitializeGeometryBuffers()
 {
     MeshData<ColorVertex> boxMesh;
-    GeometryBuilder::CreateBoxMesh(5.f, 5.f, 5.f, Colors::White, boxMesh);
+    GeometryBuilder::CreateBoxMesh(1.f, 1.f, 1.f, Colors::White, boxMesh);
     Meshes::Primitives::BoxMesh = new Mesh(m_d3dDevice.Get(), boxMesh);
 
     MeshData<ColorVertex> axisMesh;
-    GeometryBuilder::CreateAxisMesh(5.f, 5.f, 5.f, axisMesh);
+    GeometryBuilder::CreateAxisMesh(1.f, 1.f, 1.f, axisMesh);
     Meshes::Primitives::AxisMesh = new Mesh(m_d3dDevice.Get(), axisMesh);
 }
 
 void Renderer::RenderScene(XMMATRIX* projView)
 {
-    for (std::size_t i = 0; i < m_renderObjects.size(); i++)
+    SetRasterizerState(m_rasterizerState);
+
+    m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
+
+    // Render solid color material render objects
+    for (std::size_t i = 0; i < m_solidColorMaterialRenderObjects.size(); i++)
     {
-        Shader* shader = m_renderObjects[i]->GetMaterial()->GetShader();
+        SetShader(m_solidColorMaterialRenderObjects[i].second[0]->GetMaterial()->GetShader());
+
+        UINT offset = 0;
+        ID3D11Buffer* vertexBuffer = m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetVertexBuffer();
+        ID3D11Buffer* indexBuffer = m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetIndexBuffer();
+        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetVertexSize(), &offset);
+        m_d3dDeviceContext->IASetPrimitiveTopology(m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetTopology());
+        m_d3dDeviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+        for (std::size_t j = 0; j < m_solidColorMaterialRenderObjects[i].second.size(); j++)
+        {
+            SolidColorMaterial* scm = dynamic_cast<SolidColorMaterial*>(m_solidColorMaterialRenderObjects[i].second[j]->GetMaterial());
+            if (scm)
+            {
+                XMMATRIX modelMat = XMMatrixMultiply(
+                    XMMatrixRotationQuaternion(XMLoadFloat4(&m_solidColorMaterialRenderObjects[i].second[j]->GetRotation())),
+                    XMMatrixTranslationFromVector(XMLoadFloat3(&m_solidColorMaterialRenderObjects[i].second[j]->GetPosition())));
+                ConstantBuffers::ChangesEveryPrim changesEveryPrim;
+                changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
+                changesEveryPrim.Color = scm->GetColor();
+
+                D3D11_MAPPED_SUBRESOURCE map;
+                THROW_IF_FAILED(m_d3dDeviceContext->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map), "Map failed.");
+                memcpy(map.pData, &changesEveryPrim, sizeof(changesEveryPrim));
+                m_d3dDeviceContext->Unmap(m_constantBuffer.Get(), 0);
+
+                m_d3dDeviceContext->DrawIndexed(m_solidColorMaterialRenderObjects[i].second[j]->GetMesh()->GetIndexCount(), 0, 0);
+            }
+        } 
+    }
+}
+
+inline void Renderer::SetShader(Shader* shader)
+{
+    static Shader* currentShader = nullptr;
+
+    if (shader != currentShader)
+    {
         m_d3dDeviceContext->IASetInputLayout(shader->InputLayout.Get());
         m_d3dDeviceContext->VSSetShader(shader->VertexShader.Get(), nullptr, 0);
         m_d3dDeviceContext->PSSetShader(shader->PixelShader.Get(), nullptr, 0);
 
+        currentShader = shader;
+    }
+}
+
+inline void Renderer::SetRasterizerState(RasterizerState rasterizerState)
+{
+    static RasterizerState currentRasterizerState = m_rasterizerState;
+
+    if (m_rasterizerState != currentRasterizerState)
+    {
         if (RasterizerState::Solid == m_rasterizerState)
         {
             m_d3dDeviceContext->RSSetState(m_solidRasterizer.Get());
@@ -466,36 +535,11 @@ void Renderer::RenderScene(XMMATRIX* projView)
             m_d3dDeviceContext->RSSetState(m_wireframeRasterizer.Get());
         }
 
-        m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
-
-        SolidColorMaterial* scm = dynamic_cast<SolidColorMaterial*>(m_renderObjects[i]->GetMaterial());
-        if (scm)
-        {
-            XMMATRIX modelMat = XMMatrixMultiply(
-                XMMatrixRotationQuaternion(XMLoadFloat4(&m_renderObjects[i]->GetRotation())),
-                XMMatrixTranslationFromVector(XMLoadFloat3(&m_renderObjects[i]->GetPosition())));
-            ConstantBuffers::ChangesEveryPrim changesEveryPrim;
-            changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
-            changesEveryPrim.Color = scm->GetColor();
-
-            D3D11_MAPPED_SUBRESOURCE map;
-            THROW_IF_FAILED(m_d3dDeviceContext->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map), "Map failed.");
-            memcpy(map.pData, &changesEveryPrim, sizeof(changesEveryPrim));
-            m_d3dDeviceContext->Unmap(m_constantBuffer.Get(), 0);
-        }
-
-        UINT offset = 0;
-        ID3D11Buffer* vertexBuffer = m_renderObjects[i]->GetMesh()->GetVertexBuffer();
-        ID3D11Buffer* indexBuffer = m_renderObjects[i]->GetMesh()->GetIndexBuffer();
-        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, m_renderObjects[i]->GetMesh()->GetVertexSize(), &offset);
-        m_d3dDeviceContext->IASetPrimitiveTopology(m_renderObjects[i]->GetMesh()->GetTopology());
-        m_d3dDeviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-        m_d3dDeviceContext->DrawIndexed(m_renderObjects[i]->GetMesh()->GetIndexCount(), 0, 0);
+        currentRasterizerState = m_rasterizerState;
     }
 }
 
-void Renderer::CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView)
+inline void Renderer::CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView)
 {
     D3D11_TEXTURE2D_DESC dsDesc = {};
     dsDesc.Width = width;

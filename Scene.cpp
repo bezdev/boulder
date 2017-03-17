@@ -28,7 +28,7 @@ CubeScene::CubeScene():
 
 void CubeScene::InitializeScene()
 {
-    const int NUM_CUBES = 1000;
+    const int NUM_CUBES = 100000;
     const float BOUNDS = 100.f;
 
     for (int i = 0; i < NUM_CUBES; i++)
@@ -44,7 +44,7 @@ void CubeScene::InitializeScene()
         XMStoreFloat4(&rot, XMQuaternionRotationRollPitchYaw(pitch, yaw, roll));
 
         DirectX::XMFLOAT4 color;
-        int colorIndex = round(RandomInRange(1, 3));
+        int colorIndex = static_cast<int>(round(RandomInRange(1, 3)));
         switch (colorIndex)
         {
         case 1:
