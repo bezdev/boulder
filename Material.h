@@ -20,11 +20,11 @@ protected:
     MaterialType m_materialType;
 };
 
-class SolidColorMaterial : public Material
+class ColorMaterial : public Material
 {
 public:
-    SolidColorMaterial();
-    SolidColorMaterial(DirectX::XMFLOAT4 color);
+    ColorMaterial();
+    ColorMaterial(DirectX::XMFLOAT4 color);
 
     MaterialType GetType();
     DirectX::XMFLOAT4 GetColor();

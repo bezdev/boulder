@@ -17,24 +17,24 @@ MaterialType Material::GetType()
     return MaterialType();
 }
 
-SolidColorMaterial::SolidColorMaterial() :
-    Material(Shaders::SolidColorShader, MaterialType::SolidColor),
+ColorMaterial::ColorMaterial() :
+    Material(Shaders::ColorShader, MaterialType::SolidColor),
     m_color(Colors::White)
 {
 }
 
-SolidColorMaterial::SolidColorMaterial(DirectX::XMFLOAT4 color) :
-    Material(Shaders::SolidColorShader, MaterialType::SolidColor),
+ColorMaterial::ColorMaterial(DirectX::XMFLOAT4 color) :
+    Material(Shaders::ColorShader, MaterialType::SolidColor),
     m_color(color)
 {
 }
 
-MaterialType SolidColorMaterial::GetType()
+MaterialType ColorMaterial::GetType()
 {
     return m_materialType;
 }
 
-DirectX::XMFLOAT4 SolidColorMaterial::GetColor()
+DirectX::XMFLOAT4 ColorMaterial::GetColor()
 {
     return m_color;
 }

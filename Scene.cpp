@@ -58,8 +58,8 @@ void CubeScene::InitializeScene()
             break;
         }
 
-        AddModel(new Model(XMFLOAT3(x, y, z), rot, Meshes::Primitives::BoxMesh, new SolidColorMaterial(color)));
+        AddModel(new Model(XMFLOAT3(x, y, z), rot, Meshes::Primitives::BoxColorMesh, new ColorMaterial(color)));
     }
     
-    AddModel(new Model(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), Meshes::Primitives::AxisMesh, new SolidColorMaterial()));
+    AddModel(new Model(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), Meshes::Primitives::AxisMesh, new ColorMaterial()));
 }

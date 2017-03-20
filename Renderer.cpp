@@ -386,47 +386,9 @@ void Renderer::InitializeD3D(HWND window)
 
 void Renderer::InitializeShaders()
 {
-    // Initialize solid color shader
-    Shaders::SolidColorShader = new Shader();
+    // Initialize color shader
+    Shaders::ColorShader = new ColorShader();
 
-    D3D11_INPUT_ELEMENT_DESC defaultVertexDesc[] = {
-        { "Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "Color",    0, DXGI_FORMAT_R32G32B32A32_FLOAT,  0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 } };
-
-    char* defaultVertexShaderSrc =
-        "float4x4 ProjView;  float4 MasterCol;"
-        "void main(in  float4 Position : POSITION, in float4 Color : COLOR0,"
-        "          out float4 oPosition : SV_Position, out float4 oColor: COLOR0)"
-        "{   oPosition = mul(ProjView, Position);"
-        "    oColor = MasterCol * Color; }";
-    char* defaultPixelShaderSrc =
-        "float4 main(in float4 Position : SV_Position, in float4 Color: COLOR0) : SV_Target"
-        "{   return(Color); }";
-
-    ComPtr<ID3DBlob> blobData;
-    ComPtr<ID3DBlob> errorBlob;
-
-    // Create vertex and pixel shaders
-    if (FAILED(D3DCompile(defaultVertexShaderSrc, strlen(defaultVertexShaderSrc), 0, 0, 0, "main", "vs_4_0", 0, 0, &blobData, &errorBlob)))
-    {
-        throw std::runtime_error((char*)errorBlob->GetBufferPointer());
-    }
-    THROW_IF_FAILED(m_d3dDevice->CreateVertexShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &Shaders::SolidColorShader->VertexShader), "CreateVertexShader failed.");
-
-    // Create input layout
-    m_d3dDevice->CreateInputLayout(
-        defaultVertexDesc,
-        sizeof(defaultVertexDesc) / sizeof(*defaultVertexDesc),
-        blobData->GetBufferPointer(),
-        blobData->GetBufferSize(),
-        &Shaders::SolidColorShader->InputLayout);
-
-    if (FAILED(D3DCompile(defaultPixelShaderSrc, strlen(defaultPixelShaderSrc), 0, 0, 0, "main", "ps_4_0", 0, 0, &blobData, &errorBlob)))
-    {
-        throw std::runtime_error((char*)errorBlob->GetBufferPointer());
-    }
-    THROW_IF_FAILED(m_d3dDevice->CreatePixelShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), NULL, &Shaders::SolidColorShader->PixelShader), "CreatePixelShader failed.");
-    
     // Create rasterizers
     D3D11_RASTERIZER_DESC rs = {};
     rs.AntialiasedLineEnable = true;
@@ -456,9 +418,13 @@ void Renderer::InitializeShaders()
 
 void Renderer::InitializeGeometryBuffers()
 {
-    MeshData<ColorVertex> boxMesh;
-    GeometryBuilder::CreateBoxMesh(1.f, 1.f, 1.f, Colors::White, boxMesh);
-    Meshes::Primitives::BoxMesh = new Mesh(m_d3dDevice.Get(), boxMesh);
+    MeshData<ColorVertex> boxColorMesh;
+    GeometryBuilder::CreateBoxMesh(1.f, 1.f, 1.f, Colors::White, boxColorMesh);
+    Meshes::Primitives::BoxColorMesh = new Mesh(m_d3dDevice.Get(), boxColorMesh);
+
+    MeshData<NormalVertex> boxNormalVertex;
+    GeometryBuilder::CreateBoxMesh(1.f, 1.f, 1.f, boxNormalVertex);
+    Meshes::Primitives::BoxNormalMesh = new Mesh(m_d3dDevice.Get(), boxNormalVertex);
 
     MeshData<ColorVertex> axisMesh;
     GeometryBuilder::CreateAxisMesh(1.f, 1.f, 1.f, axisMesh);
@@ -485,7 +451,7 @@ void Renderer::RenderScene(XMMATRIX* projView)
 
         for (std::size_t j = 0; j < m_solidColorMaterialRenderObjects[i].second.size(); j++)
         {
-            SolidColorMaterial* scm = dynamic_cast<SolidColorMaterial*>(m_solidColorMaterialRenderObjects[i].second[j]->GetMaterial());
+            ColorMaterial* scm = dynamic_cast<ColorMaterial*>(m_solidColorMaterialRenderObjects[i].second[j]->GetMaterial());
             if (scm)
             {
                 XMMATRIX modelMat = XMMatrixMultiply(

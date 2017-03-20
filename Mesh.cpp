@@ -4,7 +4,8 @@ namespace Meshes
 {
     namespace Primitives
     {
-        Mesh* BoxMesh;
+        Mesh* BoxColorMesh;
+        Mesh* BoxNormalMesh;
         Mesh* AxisMesh;
     }
 }

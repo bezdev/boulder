@@ -38,6 +38,18 @@ struct ColorVertex
     DirectX::XMFLOAT4 Color;
 };
 
+struct NormalVertex
+{
+    NormalVertex::NormalVertex(float x, float y, float z, float nx, float ny, float nz) :
+        Position(DirectX::XMFLOAT3(x, y, z)),
+        Normal(DirectX::XMFLOAT3(x, y, z))
+    {
+    }
+
+    DirectX::XMFLOAT3 Position;
+    DirectX::XMFLOAT3 Normal;
+};
+
 template <typename T>
 struct MeshData
 {
@@ -88,6 +100,70 @@ namespace GeometryBuilder
         });
 
         meshData.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        meshData.MeshType = MeshType::PRIMITIVE_BOX;
+    }
+
+    static void CreateBoxMesh(float width, float height, float depth, MeshData<NormalVertex>& meshData)
+    {
+        float w2 = 0.5f * width;
+        float h2 = 0.5f * height;
+        float d2 = 0.5f * depth;
+
+        meshData.Vertices.assign({
+            // Fill in the front face vertex data
+            NormalVertex(-w2, -h2, -d2, 0.0f, 0.0f, -1.0f),
+            NormalVertex(-w2, +h2, -d2, 0.0f, 0.0f, -1.0f),
+            NormalVertex(+w2, +h2, -d2, 0.0f, 0.0f, -1.0f),
+            NormalVertex(+w2, -h2, -d2, 0.0f, 0.0f, -1.0f),
+            // Fill in the back face vertex data
+            NormalVertex(-w2, -h2, +d2, 0.0f, 0.0f, 1.0f),
+            NormalVertex(+w2, -h2, +d2, 0.0f, 0.0f, 1.0f),
+            NormalVertex(+w2, +h2, +d2, 0.0f, 0.0f, 1.0f),
+            NormalVertex(-w2, +h2, +d2, 0.0f, 0.0f, 1.0f),
+            // Fill in the top face vertex data
+            NormalVertex(-w2, +h2, -d2, 0.0f, 1.0f, 0.0f),
+            NormalVertex(-w2, +h2, +d2, 0.0f, 1.0f, 0.0f),
+            NormalVertex(+w2, +h2, +d2, 0.0f, 1.0f, 0.0f),
+            NormalVertex(+w2, +h2, -d2, 0.0f, 1.0f, 0.0f),
+            // Fill in the bottom face vertex data
+            NormalVertex(-w2, -h2, -d2, 0.0f, -1.0f, 0.0f),
+            NormalVertex(+w2, -h2, -d2, 0.0f, -1.0f, 0.0f),
+            NormalVertex(+w2, -h2, +d2, 0.0f, -1.0f, 0.0f),
+            NormalVertex(-w2, -h2, +d2, 0.0f, -1.0f, 0.0f),
+            // Fill in the left face vertex data
+            NormalVertex(-w2, -h2, +d2, -1.0f, 0.0f, 0.0f),
+            NormalVertex(-w2, +h2, +d2, -1.0f, 0.0f, 0.0f),
+            NormalVertex(-w2, +h2, -d2, -1.0f, 0.0f, 0.0f),
+            NormalVertex(-w2, -h2, -d2, -1.0f, 0.0f, 0.0f),
+            // Fill in the right face vertex data
+            NormalVertex(+w2, -h2, -d2, 1.0f, 0.0f, 0.0f),
+            NormalVertex(+w2, +h2, -d2, 1.0f, 0.0f, 0.0f),
+            NormalVertex(+w2, +h2, +d2, 1.0f, 0.0f, 0.0f),
+            NormalVertex(+w2, -h2, +d2, 1.0f, 0.0f, 0.0f)
+        });
+
+        meshData.Indices.assign({
+            // Fill in the front face index data
+            0, 1, 2,
+            0, 2, 3,
+            // Fill in the back face index data
+            4,5, 6,
+            4, 6, 7,
+            // Fill in the top face index data
+            8, 9, 10,
+            8, 10, 11,
+            // Fill in the bottom face index data
+            12, 13, 14,
+            12, 14, 15,
+            // Fill in the left face index data
+            16, 17, 18,
+            16, 18, 19,
+            // Fill in the right face index data
+            20, 21, 22,
+            20, 22, 23
+        });
+
+        meshData.Topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
         meshData.MeshType = MeshType::PRIMITIVE_BOX;
     }
 
@@ -165,7 +241,8 @@ namespace Meshes
 {
     namespace Primitives
     {
-        extern Mesh* BoxMesh;
+        extern Mesh* BoxColorMesh;
+        extern Mesh* BoxNormalMesh;
         extern Mesh* AxisMesh;
     }
 }
