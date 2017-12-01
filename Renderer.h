@@ -4,12 +4,26 @@
 #include <d3d11.h>
 #include <DirectXMath.h>
 
+#include <map>
 #include <vector>
 
 #include "OVR_CAPI_D3D.h"
 
 #include "Shader.h"
 #include "Model.h"
+
+#define RENDERER RendererType::Vitamin
+
+namespace DIRECTX
+{
+    extern ID3D11Device* Device;
+    extern ID3D11DeviceContext* DeviceContext;
+}
+
+typedef std::vector<Model*> Models;
+typedef std::map<MeshType, Models> ModelsByMeshType;
+typedef std::map<MaterialType, ModelsByMeshType> ModelsByMaterialByMeshType;
+typedef ModelsByMaterialByMeshType RenderObjects;
 
 enum RendererType
 {
@@ -19,6 +33,7 @@ enum RendererType
 
 enum RasterizerState
 {
+    None,
     Solid,
     Wireframe
 };
@@ -86,7 +101,6 @@ struct OculusTexture
         return m_texRTV[index].Get();
     }
 
-    // Commit changes
     void Commit()
     {
         ovr_CommitTextureSwapChain(m_ovrSession, m_textureSwapChain);
@@ -96,32 +110,30 @@ struct OculusTexture
 class Renderer
 {
 public:
-    Renderer(RendererType rendererType);
+    Renderer();
     ~Renderer();
     void Initialize(HWND window);
     void AddRenderObject(Model* model);
     void Render();
 
     void ToggleRasterizerState();
-
-    ID3D11Device* GetDevice()
-    {
-        return m_d3dDevice.Get();
-    }
-
 protected:
     void InitializeOVR();
     void InitializeD3D(HWND window);
     void InitializeShaders();
     void InitializeGeometryBuffers();
 
+    void CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView);
+
     void RenderVitamin();
     void RenderOculus();
     void RenderScene(DirectX::XMMATRIX* projView);
+
     void SetShader(Shader* shader);
     void SetRasterizerState(RasterizerState rasterizerState);
+    void SetVertexIndexBuffers(ID3D11Buffer* vertexBuffer, ID3D11Buffer* indexBuffer, size_t* vertexSize, D3D_PRIMITIVE_TOPOLOGY topology);
 
-    void CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView);
+    bool ValidateMaterialAndMeshTypes(MaterialType materialType, MeshType meshType);
 
     int m_clientWidth;
     int m_clientHeight;
@@ -131,15 +143,16 @@ protected:
     Microsoft::WRL::ComPtr<IDXGISwapChain> m_swapChain;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_backBuffer;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_backBufferRT;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_constantBuffer;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthBuffer;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthState;
 
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_wireframeRasterizer;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_solidRasterizer;
     RasterizerState m_rasterizerState;
-    
-    std::vector<std::pair<MeshType, std::vector<Model*>>> m_solidColorMaterialRenderObjects;
+
+    // Render objects are first sorted by material type and then mesh type to
+    // minimize changing the rendering states.
+    RenderObjects m_renderObjects;
 
     ovrSession m_ovrSession;
     ovrHmdDesc m_hmdDesc;
@@ -152,16 +165,3 @@ protected:
 
     RendererType m_rendererType;
 };
-
-static inline int RenderObjectsContainsMeshType(const std::vector<std::pair<MeshType, std::vector<Model*>>>& renderObjects, MeshType meshType)
-{
-    for (std::size_t i = 0; i < renderObjects.size(); i++)
-    {
-        if (renderObjects[i].first == meshType)
-        {
-            return i;
-        }
-    }
-
-    return -1;
-}

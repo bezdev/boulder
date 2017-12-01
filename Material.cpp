@@ -14,7 +14,7 @@ Shader* Material::GetShader()
 
 MaterialType Material::GetType()
 {
-    return MaterialType();
+    return m_materialType;
 }
 
 ColorMaterial::ColorMaterial() :
@@ -27,6 +27,11 @@ ColorMaterial::ColorMaterial(DirectX::XMFLOAT4 color) :
     Material(Shaders::ColorShader, MaterialType::SolidColor),
     m_color(color)
 {
+}
+
+ColorShader * ColorMaterial::GetShader()
+{
+    return (ColorShader*)m_shader;
 }
 
 MaterialType ColorMaterial::GetType()

@@ -26,6 +26,7 @@ public:
     ColorMaterial();
     ColorMaterial(DirectX::XMFLOAT4 color);
 
+    ColorShader* GetShader();
     MaterialType GetType();
     DirectX::XMFLOAT4 GetColor();
 protected:

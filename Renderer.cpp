@@ -3,12 +3,17 @@
 
 #include "Renderer.h"
 #include "OculusApp.h"
-#include "ConstantBuffers.h"
 
 using namespace Microsoft::WRL;
 using namespace DirectX;
 
-Renderer::Renderer(RendererType rendererType) :
+namespace DIRECTX
+{
+    ID3D11Device* Device;
+    ID3D11DeviceContext* DeviceContext;
+}
+
+Renderer::Renderer() :
     m_clientWidth(0),
     m_clientHeight(0),
     m_d3dDevice(nullptr),
@@ -20,10 +25,10 @@ Renderer::Renderer(RendererType rendererType) :
     m_eyeDepthBuffer{},
     m_eyeRenderTexture{},
     m_frameIndex(0),
-    m_rendererType(rendererType),
+    m_rendererType(RENDERER),
     m_rasterizerState(RasterizerState::Solid)
 {
-    m_solidColorMaterialRenderObjects.clear();
+    m_renderObjects.clear();
 }
 
 Renderer::~Renderer()
@@ -36,6 +41,7 @@ Renderer::~Renderer()
     if (RendererType::Oculus == m_rendererType)
     {
         ovr_Destroy(m_ovrSession);
+        ovr_Shutdown();
     }
 }
 
@@ -54,23 +60,26 @@ void Renderer::Initialize(HWND window)
 void Renderer::AddRenderObject(Model* model)
 {
     MaterialType materialType = model->GetMaterial()->GetType();
-    
-    if (MaterialType::SolidColor == materialType)
+    MeshType meshType = model->GetMesh()->GetType();
+
+    if (!ValidateMaterialAndMeshTypes(materialType, meshType))
     {
-        int index = RenderObjectsContainsMeshType(m_solidColorMaterialRenderObjects, model->GetMesh()->GetType());
-        if (index < 0)
-        {
-            m_solidColorMaterialRenderObjects.push_back(std::make_pair<MeshType, std::vector<Model*>>(model->GetMesh()->GetType(), { model }));
-        }
-        else
-        {
-            m_solidColorMaterialRenderObjects[index].second.push_back(model);
-        }
+        throw std::runtime_error("Material and Mesh types are not compatible.");
     }
-    else
+
+    // Does the material type exist?
+    if (m_renderObjects.find(materialType) == m_renderObjects.end())
     {
-        throw std::runtime_error("adding unregistered material");
+        m_renderObjects[materialType] = ModelsByMeshType();
     }
+
+    // Does the mesh type exist?
+    if (m_renderObjects[materialType].find(meshType) == m_renderObjects[materialType].end())
+    {
+        m_renderObjects[materialType][meshType] = Models();
+    }
+
+    m_renderObjects[materialType][meshType].push_back(model);
 }
 
 void Renderer::Render()
@@ -210,10 +219,15 @@ void Renderer::RenderOculus()
 }
 
 void Renderer::InitializeOVR()
-{
-    ovrResult result = ovr_Create(&m_ovrSession, &m_gLuid);
+{    
+    // Initializes LibOVR, and the Rift
+    ovrInitParams initParams = { ovrInit_RequestVersion, OVR_MINOR_VERSION, NULL, 0, 0 };
+    if (OVR_FAILURE(ovr_Initialize(&initParams)))
+    {
+        throw std::runtime_error("ovr_Initialize failed.");
+    }
 
-    if (OVR_FAILURE(result))
+    if (OVR_FAILURE(ovr_Create(&m_ovrSession, &m_gLuid)))
     {
         throw std::runtime_error("ovr_Create failed.");
     }
@@ -315,15 +329,6 @@ void Renderer::InitializeD3D(HWND window)
 
     m_d3dDeviceContext->OMSetRenderTargets(1, m_backBufferRT.GetAddressOf(), m_depthBuffer.Get());
 
-    // Constant buffer for shader constants
-    D3D11_BUFFER_DESC cbDesc = {};
-    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
-    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    cbDesc.ByteWidth = sizeof(ConstantBuffers::ChangesEveryPrim);
-    THROW_IF_FAILED(m_d3dDevice->CreateBuffer(&cbDesc, nullptr, &m_constantBuffer), "Create Buffer failed.");
-    m_d3dDeviceContext->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
-
     if (RendererType::Oculus == m_rendererType)
     {
         for (int eye = 0; eye < 2; eye++)
@@ -382,6 +387,9 @@ void Renderer::InitializeD3D(HWND window)
             m_d3dDeviceContext->RSSetViewports(1, &vp);
         }
     }
+
+    DIRECTX::Device = m_d3dDevice.Get();
+    DIRECTX::DeviceContext = m_d3dDeviceContext.Get();
 }
 
 void Renderer::InitializeShaders()
@@ -433,42 +441,46 @@ void Renderer::InitializeGeometryBuffers()
 
 void Renderer::RenderScene(XMMATRIX* projView)
 {
+    if (m_renderObjects.size() == 0)
+    {
+        return;
+    }
+
     SetRasterizerState(m_rasterizerState);
 
     m_d3dDeviceContext->OMSetDepthStencilState(m_depthState.Get(), 0);
 
-    // Render solid color material render objects
-    for (std::size_t i = 0; i < m_solidColorMaterialRenderObjects.size(); i++)
+    // Iterate through the render objects.
+    for (auto itByMaterialType = m_renderObjects.begin(); itByMaterialType != m_renderObjects.end(); itByMaterialType++)
     {
-        SetShader(m_solidColorMaterialRenderObjects[i].second[0]->GetMaterial()->GetShader());
-
-        UINT offset = 0;
-        ID3D11Buffer* vertexBuffer = m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetVertexBuffer();
-        ID3D11Buffer* indexBuffer = m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetIndexBuffer();
-        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetVertexSize(), &offset);
-        m_d3dDeviceContext->IASetPrimitiveTopology(m_solidColorMaterialRenderObjects[i].second[0]->GetMesh()->GetTopology());
-        m_d3dDeviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-        for (std::size_t j = 0; j < m_solidColorMaterialRenderObjects[i].second.size(); j++)
+        for (auto itByMeshType = itByMaterialType->second.begin(); itByMeshType != itByMaterialType->second.end(); itByMeshType++)
         {
-            ColorMaterial* scm = dynamic_cast<ColorMaterial*>(m_solidColorMaterialRenderObjects[i].second[j]->GetMaterial());
-            if (scm)
+            for (auto itModels = itByMeshType->second.begin(); itModels != itByMeshType->second.end(); itModels++)
             {
-                XMMATRIX modelMat = XMMatrixMultiply(
-                    XMMatrixRotationQuaternion(XMLoadFloat4(&m_solidColorMaterialRenderObjects[i].second[j]->GetRotation())),
-                    XMMatrixTranslationFromVector(XMLoadFloat3(&m_solidColorMaterialRenderObjects[i].second[j]->GetPosition())));
-                ConstantBuffers::ChangesEveryPrim changesEveryPrim;
-                changesEveryPrim.WorldMatrix = XMMatrixMultiply(modelMat, *projView);
-                changesEveryPrim.Color = scm->GetColor();
+                Model* model = *itModels;
 
-                D3D11_MAPPED_SUBRESOURCE map;
-                THROW_IF_FAILED(m_d3dDeviceContext->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map), "Map failed.");
-                memcpy(map.pData, &changesEveryPrim, sizeof(changesEveryPrim));
-                m_d3dDeviceContext->Unmap(m_constantBuffer.Get(), 0);
+                SetShader(model->GetMaterial()->GetShader());
 
-                m_d3dDeviceContext->DrawIndexed(m_solidColorMaterialRenderObjects[i].second[j]->GetMesh()->GetIndexCount(), 0, 0);
+                SetVertexIndexBuffers(
+                    model->GetMesh()->GetVertexBuffer(),
+                    model->GetMesh()->GetIndexBuffer(),
+                    model->GetMesh()->GetVertexSize(),
+                    model->GetMesh()->GetTopology());
+                
+                if (model->GetMaterial()->GetType() == SolidColor)
+                {
+
+                    XMMATRIX modelMat = XMMatrixMultiply(
+                        XMMatrixRotationQuaternion(XMLoadFloat4((&model->GetRotation()))),
+                        XMMatrixTranslationFromVector(XMLoadFloat3(&(model->GetPosition()))));
+
+                    ColorMaterial* material = (ColorMaterial*)(model->GetMaterial());
+                    material->GetShader()->UpdateConstantBuffer(XMMatrixMultiply(modelMat, *projView), material->GetColor());
+                    
+                    DIRECTX::DeviceContext->DrawIndexed(model->GetMesh()->GetIndexCount(), 0, 0);
+                }
             }
-        } 
+        }
     }
 }
 
@@ -478,31 +490,65 @@ inline void Renderer::SetShader(Shader* shader)
 
     if (shader != currentShader)
     {
-        m_d3dDeviceContext->IASetInputLayout(shader->InputLayout.Get());
-        m_d3dDeviceContext->VSSetShader(shader->VertexShader.Get(), nullptr, 0);
-        m_d3dDeviceContext->PSSetShader(shader->PixelShader.Get(), nullptr, 0);
-
+        shader->Set();
+        
         currentShader = shader;
     }
 }
 
 inline void Renderer::SetRasterizerState(RasterizerState rasterizerState)
 {
-    static RasterizerState currentRasterizerState = m_rasterizerState;
+    static RasterizerState currentRasterizerState = RasterizerState::None;
 
-    if (m_rasterizerState != currentRasterizerState)
+    if (rasterizerState != currentRasterizerState)
     {
-        if (RasterizerState::Solid == m_rasterizerState)
+        if (RasterizerState::Solid == rasterizerState)
         {
             m_d3dDeviceContext->RSSetState(m_solidRasterizer.Get());
         }
-        else if (RasterizerState::Wireframe == m_rasterizerState)
+        else if (RasterizerState::Wireframe == rasterizerState)
         {
             m_d3dDeviceContext->RSSetState(m_wireframeRasterizer.Get());
         }
 
-        currentRasterizerState = m_rasterizerState;
+        currentRasterizerState = rasterizerState;
     }
+}
+
+void Renderer::SetVertexIndexBuffers(ID3D11Buffer * vertexBuffer, ID3D11Buffer * indexBuffer, size_t * vertexSize, D3D_PRIMITIVE_TOPOLOGY topology)
+{
+    static ID3D11Buffer * s_vertexBuffer = nullptr;
+    static ID3D11Buffer * s_indexBuffer = nullptr;
+    static D3D_PRIMITIVE_TOPOLOGY s_topology;
+
+    if (vertexBuffer == s_vertexBuffer && indexBuffer == s_indexBuffer)
+    {
+        return;
+    }
+
+    if (vertexBuffer != s_vertexBuffer)
+    {
+        UINT offset = 0;
+        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, vertexSize, &offset);
+    }
+
+    if (indexBuffer != s_indexBuffer)
+    {
+        m_d3dDeviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    }
+
+    m_d3dDeviceContext->IASetPrimitiveTopology(topology);
+
+    s_vertexBuffer = vertexBuffer;
+    s_indexBuffer = indexBuffer;
+}
+
+bool Renderer::ValidateMaterialAndMeshTypes(MaterialType materialType, MeshType meshType)
+{
+    // There is an implicit relationship between the material and mesh types. An incompatibility
+    // may not necessarily manifest itself as crash so do some verification here if DEBUG is enabled.
+
+    return true;
 }
 
 inline void Renderer::CreateDepthBuffer(int width, int height, int sampleCount, ID3D11DepthStencilView **ppDepthStencilView)

@@ -16,20 +16,12 @@ void Scene::AddModel(Model* model)
     m_models.push_back(std::unique_ptr<Model>(model));
 }
 
-void Scene::InitializeScene()
+Scene* SceneManager::CreateColorCubeScene()
 {
-}
+    const int NUM_CUBES = 100;
+    const float BOUNDS = 10.f;
 
-CubeScene::CubeScene():
-    Scene()
-{
-    InitializeScene();
-}
-
-void CubeScene::InitializeScene()
-{
-    const int NUM_CUBES = 100000;
-    const float BOUNDS = 100.f;
+    Scene* scene = new Scene();
 
     for (int i = 0; i < NUM_CUBES; i++)
     {
@@ -58,8 +50,20 @@ void CubeScene::InitializeScene()
             break;
         }
 
-        AddModel(new Model(XMFLOAT3(x, y, z), rot, Meshes::Primitives::BoxColorMesh, new ColorMaterial(color)));
+        scene->AddModel(new Model(XMFLOAT3(x, y, z), rot, Meshes::Primitives::BoxColorMesh, new ColorMaterial(color)));
     }
-    
-    AddModel(new Model(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), Meshes::Primitives::AxisMesh, new ColorMaterial()));
+
+    scene->AddModel(new Model(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), Meshes::Primitives::AxisMesh, new ColorMaterial()));
+
+    return scene;
+}
+
+Scene* SceneManager::CreateNormalCubeScene()
+{
+    Scene* scene = new Scene();
+
+    scene->AddModel(new Model(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), Meshes::Primitives::BoxColorMesh, new ColorMaterial(Colors::Red)));
+    scene->AddModel(new Model(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT4(0.f, 0.f, 0.f, 0.f), Meshes::Primitives::AxisMesh, new ColorMaterial()));
+
+    return scene;
 }

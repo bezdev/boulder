@@ -14,8 +14,6 @@
 #include "Camera.h"
 #include "Timer.h"
 
-#define RENDERER RendererType::Vitamin
-
 class OculusApp
 {
 public:

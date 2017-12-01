@@ -17,7 +17,7 @@ OculusApp::OculusApp(HINSTANCE hInstance) :
     gOculusApp = this;
 
     m_controller = new Controller();
-    m_renderer = new Renderer(RENDERER);
+    m_renderer = new Renderer();
 }
 
 OculusApp::~OculusApp()
@@ -43,7 +43,7 @@ void OculusApp::Initialize()
     InitializeWindow();
     m_renderer->Initialize(m_window);
 
-    m_scene = new CubeScene();
+    m_scene = SceneManager::CreateColorCubeScene();
 
     m_camera = new Camera(DirectX::XMVectorSet(0.0f, 0.0f, 10.0f, 0), DirectX::XMQuaternionIdentity());
 }
