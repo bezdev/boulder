@@ -14,6 +14,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR str, int)
         OutputDebugString(e.what());
         OutputDebugString("\n");
 
+        if (IsDebuggerPresent())
+        {
+            DebugBreak();
+        }
+
         exit(1);
     }
 

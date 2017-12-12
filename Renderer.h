@@ -50,7 +50,7 @@ struct OculusTexture
     {
     }
 
-    void Init(ovrSession session, ID3D11Device* device, int sizeW, int sizeH)
+    void Init(ovrSession session, int sizeW, int sizeH)
     {
         m_ovrSession = session;
 
@@ -66,7 +66,7 @@ struct OculusTexture
         desc.BindFlags = ovrTextureBind_DX_RenderTarget;
         desc.StaticImage = ovrFalse;
 
-        if (OVR_FAILURE(ovr_CreateTextureSwapChainDX(m_ovrSession, device, &desc, &m_textureSwapChain)))
+        if (OVR_FAILURE(ovr_CreateTextureSwapChainDX(m_ovrSession, DIRECTX::Device, &desc, &m_textureSwapChain)))
         {
             throw std::runtime_error("ovr_CreateTextureSwapChainDX failed.");
         }
@@ -81,7 +81,7 @@ struct OculusTexture
             rtvd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
             rtvd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
             ID3D11RenderTargetView* rtv;
-            device->CreateRenderTargetView(tex.Get(), &rtvd, &rtv);
+            DIRECTX::Device->CreateRenderTargetView(tex.Get(), &rtvd, &rtv);
             m_texRTV.push_back(rtv);
         }
     }

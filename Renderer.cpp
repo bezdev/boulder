@@ -54,6 +54,7 @@ void Renderer::Initialize(HWND window)
 
     InitializeD3D(window);
     InitializeShaders();
+
     InitializeGeometryBuffers();
 }
 
@@ -66,6 +67,8 @@ void Renderer::AddRenderObject(Model* model)
     {
         throw std::runtime_error("Material and Mesh types are not compatible.");
     }
+
+    // TODO: this is bad jsut initialize them
 
     // Does the material type exist?
     if (m_renderObjects.find(materialType) == m_renderObjects.end())
@@ -143,11 +146,12 @@ void Renderer::RenderOculus()
 
         // Get both eye poses simultaneously, with IPD offset already included
         ovrPosef eyeRenderPose[2];
-        ovrVector3f hmdToEyeOffset[2] = { eyeRenderDesc[0].HmdToEyeOffset, eyeRenderDesc[1].HmdToEyeOffset };
+        ovrPosef hmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose,
+                                     eyeRenderDesc[1].HmdToEyePose };;
 
         // sensorSampleTime is fed into the layer later
         double sensorSampleTime;
-        ovr_GetEyePoses(m_ovrSession, m_frameIndex, ovrTrue, hmdToEyeOffset, eyeRenderPose, &sensorSampleTime);
+        ovr_GetEyePoses(m_ovrSession, m_frameIndex, ovrTrue, hmdToEyePose, eyeRenderPose, &sensorSampleTime);
 
         // Render Scene to Eye Buffers
         for (int eye = 0; eye < 2; eye++)
@@ -282,6 +286,9 @@ void Renderer::InitializeD3D(HWND window)
         throw std::runtime_error("D3D11CreateDevice failed.");
     }
 
+    DIRECTX::Device = m_d3dDevice.Get();
+    DIRECTX::DeviceContext = m_d3dDeviceContext.Get();
+
     // Create swap chain
     DXGI_SWAP_CHAIN_DESC scDesc = {};
     scDesc.BufferDesc.Width = m_clientWidth;
@@ -335,7 +342,7 @@ void Renderer::InitializeD3D(HWND window)
         {
             ovrSizei idealSize = ovr_GetFovTextureSize(m_ovrSession, (ovrEyeType)eye, m_hmdDesc.DefaultEyeFov[eye], 1.0f);
             m_eyeRenderTexture[eye] = new OculusTexture();
-            m_eyeRenderTexture[eye]->Init(m_ovrSession, m_d3dDevice.Get(), idealSize.w, idealSize.h);
+            m_eyeRenderTexture[eye]->Init(m_ovrSession, idealSize.w, idealSize.h);
             CreateDepthBuffer(idealSize.w, idealSize.h, 1, &m_eyeDepthBuffer[eye]);
             m_eyeRenderViewport[eye].Pos.x = 0;
             m_eyeRenderViewport[eye].Pos.y = 0;
@@ -387,9 +394,6 @@ void Renderer::InitializeD3D(HWND window)
             m_d3dDeviceContext->RSSetViewports(1, &vp);
         }
     }
-
-    DIRECTX::Device = m_d3dDevice.Get();
-    DIRECTX::DeviceContext = m_d3dDeviceContext.Get();
 }
 
 void Renderer::InitializeShaders()
@@ -529,7 +533,8 @@ void Renderer::SetVertexIndexBuffers(ID3D11Buffer * vertexBuffer, ID3D11Buffer *
     if (vertexBuffer != s_vertexBuffer)
     {
         UINT offset = 0;
-        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, vertexSize, &offset);
+        UINT size = static_cast<UINT>(*vertexSize);
+        m_d3dDeviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, &size, &offset);
     }
 
     if (indexBuffer != s_indexBuffer)

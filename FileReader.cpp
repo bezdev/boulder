@@ -1,6 +1,7 @@
 #include <vector>
 #include <fstream>
 
+#include "OculusApp.h"
 #include "FileReader.h"
 
 #ifdef DEBUG
@@ -11,7 +12,9 @@
 
 std::vector<char> FileReader::ReadCSO(const char * filename)
 {
-    std::ifstream fin(OBJ_PATH + filename, std::ios::binary);
+    std::string relPath = (gOculusApp->IsTest() ? filename : (OBJ_PATH + filename));
+    
+    std::ifstream fin(relPath, std::ios::binary);
     fin.seekg(0, std::ios_base::end);
     int size = (int)fin.tellg();
     fin.seekg(0, std::ios_base::beg);

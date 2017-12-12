@@ -9,15 +9,17 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     return gOculusApp->WindowProc(hwnd, msg, wParam, lParam);
 }
 
-OculusApp::OculusApp(HINSTANCE hInstance) :
+OculusApp::OculusApp(HINSTANCE hInstance, bool testMode) :
     m_hInstance(hInstance),
     m_window(nullptr),
-    m_isRunning(false)
+    m_isRunning(false),
+    m_isTestMode(testMode)
 {
     gOculusApp = this;
 
     m_controller = new Controller();
     m_renderer = new Renderer();
+    m_logger = new Logger();
 }
 
 OculusApp::~OculusApp()
@@ -28,8 +30,11 @@ OculusApp::~OculusApp()
     delete m_renderer;
     m_renderer = nullptr;
 
-    delete m_scene;
-    m_scene = nullptr;
+    if (m_scene)
+    {
+        delete m_scene;
+        m_scene = nullptr;
+    }
 
     delete m_camera;
     m_camera = nullptr;
@@ -54,7 +59,7 @@ void OculusApp::Run()
     static bool firstMainLoopIt = true;
 
     // main loop
-    while (HandleMessages())
+    while (HandleMessages() && m_isRunning)
     {
         if (firstMainLoopIt)
         {
@@ -143,6 +148,8 @@ void OculusApp::CalculateFrameStats()
         swprintf_s(titleBuffer, L"FPS: %.0f", round(fps));
         SetWindowTextW(m_window, titleBuffer);
 
+        m_logger->LogFPS(round(fps));
+
         frameCount = 0;
         timeElapsed -= 1000.0f;
     }
@@ -180,7 +187,6 @@ LRESULT OculusApp::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_DESTROY:
         m_isRunning = false;
-
         PostQuitMessage(0);
         return 0;
     }

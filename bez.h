@@ -44,3 +44,9 @@ inline float RandomInRange(float min, float max)
 {
     return static_cast<float>(rand()) / (RAND_MAX + 1) * (max - min) + min;
 }
+
+template <typename T>
+bool IsInRange(T value, T min, T max)
+{
+    return (min <= value && value <= max);
+}
